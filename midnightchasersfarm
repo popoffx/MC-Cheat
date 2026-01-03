@@ -196,7 +196,7 @@ end
 
 -- Loading the UI (Replace this URL with your raw hosted 'ui.lua' if you want)
 -- For demonstration, I will assume the library is loaded into variable `library` via loadstring or direct paste.
--- Example: local library = loadstring(game:HttpGet("YOUR_NEW_MODERN_UI_RAW_LINK", true))()
+-- Example: local library = loadstring(game:HttpGet("https://raw.githubusercontent.com/popoffx/MC-Cheat/refs/heads/main/modern_ui.lua", true))()
 
 -- *TEMPORARY FIX FOR SINGLE SCRIPT USE*: I will paste the UI logic here to make it work out of the box.
 local library = (function()
