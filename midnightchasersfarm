@@ -451,7 +451,7 @@ local library = (function()
     return Library
 end)()
 
-local example = library:CreateWindow({ text = "Midnight Chasers" })
+local example = library:CreateWindow({ text = "Midnight Chasers - BY POPOFF" })
 
 -- == MAIN FEATURES ==
 example:AddBox("Set Speed (Def: 230)", function(object, focus)
