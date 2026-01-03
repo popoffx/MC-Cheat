@@ -1,200 +1,268 @@
---// Modern UI Library (Fixed & Stable)
---// UI only – no game logic
-
-local Players = game:GetService("Players")
-local UIS = game:GetService("UserInputService")
-local TweenService = game:GetService("TweenService")
-local LocalPlayer = Players.LocalPlayer
-
-local library = { windowcount = 0 }
-
---// Theme
-local theme = {
-	bg = Color3.fromRGB(18,18,22),
-	panel = Color3.fromRGB(28,28,32),
-	stroke = Color3.fromRGB(45,45,50),
-	text = Color3.fromRGB(235,235,240),
-	sub = Color3.fromRGB(160,160,170),
-	accent = Color3.fromRGB(88,101,242)
+local library = {
+    windowcount = 0;
 }
 
---// Helpers
-local function round(o,r)
-	local c = Instance.new("UICorner")
-	c.CornerRadius = UDim.new(0,r)
-	c.Parent = o
+local dragger = {};
+local resizer = {};
+
+do
+    local mouse = game:GetService("Players").LocalPlayer:GetMouse();
+    local inputService = game:GetService('UserInputService');
+    local heartbeat = game:GetService("RunService").Heartbeat;
+
+    function dragger.new(frame)
+        local s, event = pcall(function()
+            return frame.MouseEnter
+        end)
+
+        if s then
+            frame.Active = true;
+
+            event:Connect(function()
+                local input = frame.InputBegan:Connect(function(key)
+                    if key.UserInputType == Enum.UserInputType.MouseButton1 then
+                        local objectPosition = Vector2.new(
+                            mouse.X - frame.AbsolutePosition.X,
+                            mouse.Y - frame.AbsolutePosition.Y
+                        );
+                        while heartbeat:Wait()
+                            and inputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton1) do
+                            frame:TweenPosition(
+                                UDim2.new(
+                                    0,
+                                    mouse.X - objectPosition.X + (frame.Size.X.Offset * frame.AnchorPoint.X),
+                                    0,
+                                    mouse.Y - objectPosition.Y + (frame.Size.Y.Offset * frame.AnchorPoint.Y)
+                                ),
+                                'Out',
+                                'Quad',
+                                0.12,
+                                true
+                            );
+                        end
+                    end
+                end)
+
+                local leave;
+                leave = frame.MouseLeave:Connect(function()
+                    input:Disconnect();
+                    leave:Disconnect();
+                end)
+            end)
+        end
+    end
+
+    function resizer.new(p, s)
+        p:GetPropertyChangedSignal('AbsoluteSize'):Connect(function()
+            s.Size = UDim2.new(
+                s.Size.X.Scale,
+                s.Size.X.Offset,
+                s.Size.Y.Scale,
+                p.AbsoluteSize.Y
+            );
+        end)
+    end
 end
 
-local function tween(o,p,t)
-	TweenService:Create(o,TweenInfo.new(t or 0.2,Enum.EasingStyle.Quad,Enum.EasingDirection.Out),p):Play()
+--// PREMIUM THEME
+local defaults = {
+    txtcolor = Color3.fromRGB(235, 235, 235),
+    underline = Color3.fromRGB(0, 255, 170),
+    barcolor = Color3.fromRGB(20, 20, 24),
+    bgcolor = Color3.fromRGB(26, 26, 32),
+    boxcolor = Color3.fromRGB(32, 32, 40),
+    strokecolor = Color3.fromRGB(60, 60, 70),
+    accent = Color3.fromRGB(0, 255, 170)
+}
+
+function library:Create(class, props)
+    local object = Instance.new(class);
+    for i, prop in next, props do
+        if i ~= "Parent" then
+            object[i] = prop;
+        end
+    end
+    object.Parent = props.Parent;
+    return object;
 end
 
---// Drag
-local function drag(frame)
-	local dragging,startPos,startInput
-	frame.InputBegan:Connect(function(i)
-		if i.UserInputType == Enum.UserInputType.MouseButton1 then
-			dragging = true
-			startInput = i.Position
-			startPos = frame.Position
-		end
-	end)
-	UIS.InputChanged:Connect(function(i)
-		if dragging and i.UserInputType == Enum.UserInputType.MouseMovement then
-			local d = i.Position - startInput
-			frame.Position = UDim2.new(
-				startPos.X.Scale, startPos.X.Offset + d.X,
-				startPos.Y.Scale, startPos.Y.Offset + d.Y
-			)
-		end
-	end)
-	UIS.InputEnded:Connect(function(i)
-		if i.UserInputType == Enum.UserInputType.MouseButton1 then
-			dragging = false
-		end
-	end)
-end
+function library:CreateWindow(options)
+    assert(options.text, "no name");
+    local window = {
+        count = 0;
+        toggles = {},
+        closed = false;
+    }
 
---// Window
-function library:CreateWindow(opt)
-	self.windowcount += 1
-	library.gui = library.gui or Instance.new("ScreenGui",game.CoreGui)
-	library.gui.Name = "ModernUILib"
+    options = options or {};
+    setmetatable(options, {__index = defaults})
 
-	local window = {}
+    self.windowcount += 1;
 
-	local frame = Instance.new("Frame",library.gui)
-	frame.Size = UDim2.fromOffset(300,40)
-	frame.Position = UDim2.fromOffset(40 + (320*(self.windowcount-1)),60)
-	frame.BackgroundColor3 = theme.panel
-	frame.BorderSizePixel = 0
-	round(frame,12)
-	drag(frame)
+    library.gui = library.gui or self:Create("ScreenGui", {
+        Name = "UILibrary",
+        Parent = game:GetService("CoreGui")
+    })
 
-	local title = Instance.new("TextLabel",frame)
-	title.Size = UDim2.new(1,-40,0,40)
-	title.Position = UDim2.fromOffset(16,0)
-	title.BackgroundTransparency = 1
-	title.Text = opt.text or "Window"
-	title.Font = Enum.Font.GothamSemibold
-	title.TextSize = 16
-	title.TextColor3 = theme.text
-	title.TextXAlignment = Enum.TextXAlignment.Left
+    --// TOP BAR
+    window.frame = self:Create("Frame", {
+        Name = options.text;
+        Parent = self.gui,
+        Active = true,
+        Size = UDim2.new(0, 220, 0, 36),
+        Position = UDim2.new(0, 20 + ((240 * self.windowcount) - 240), 0, 20),
+        BackgroundColor3 = options.barcolor,
+        BorderSizePixel = 0;
+    })
 
-	local toggle = Instance.new("TextButton",frame)
-	toggle.Size = UDim2.fromOffset(32,32)
-	toggle.Position = UDim2.new(1,-36,0,4)
-	toggle.BackgroundTransparency = 1
-	toggle.Text = "–"
-	toggle.Font = Enum.Font.GothamBold
-	toggle.TextSize = 20
-	toggle.TextColor3 = theme.sub
+    self:Create("UICorner", {CornerRadius = UDim.new(0, 10), Parent = window.frame})
+    self:Create("UIStroke", {
+        Color = options.strokecolor,
+        Thickness = 1,
+        Transparency = 0.4,
+        Parent = window.frame
+    })
+    self:Create("UIGradient", {
+        Color = ColorSequence.new{
+            ColorSequenceKeypoint.new(0, Color3.fromRGB(30,30,36)),
+            ColorSequenceKeypoint.new(1, Color3.fromRGB(18,18,22))
+        },
+        Rotation = 90,
+        Parent = window.frame
+    })
 
-	local container = Instance.new("Frame",frame)
-	container.Position = UDim2.fromOffset(0,40)
-	container.Size = UDim2.new(1,0,0,0)
-	container.BackgroundTransparency = 1
-	container.ClipsDescendants = true
+    --// TITLE
+    self:Create("TextLabel", {
+        Size = UDim2.new(1, -40, 1, 0),
+        Position = UDim2.new(0, 12, 0, 0),
+        BackgroundTransparency = 1;
+        TextColor3 = options.txtcolor,
+        TextSize = 16,
+        Font = Enum.Font.GothamSemibold;
+        TextXAlignment = Enum.TextXAlignment.Left;
+        Text = options.text,
+        Parent = window.frame,
+    })
 
-	local layout = Instance.new("UIListLayout",container)
-	layout.Padding = UDim.new(0,8)
+    --// TOGGLE BUTTON
+    local togglebutton = self:Create("TextButton", {
+        BackgroundTransparency = 1;
+        Position = UDim2.new(1, -30, 0, 0),
+        Size = UDim2.new(0, 30, 1, 0),
+        Text = "–",
+        TextSize = 20,
+        TextColor3 = options.accent,
+        Font = Enum.Font.GothamBold;
+        Parent = window.frame,
+    })
 
-	local pad = Instance.new("UIPadding",container)
-	pad.PaddingLeft = UDim.new(0,16)
-	pad.PaddingRight = UDim.new(0,16)
-	pad.PaddingTop = UDim.new(0,12)
-	pad.PaddingBottom = UDim.new(0,12)
+    --// BACKGROUND
+    window.background = self:Create("Frame", {
+        Parent = window.frame,
+        Position = UDim2.new(0, 0, 1, 0),
+        Size = UDim2.new(1, 0, 0, 25),
+        BackgroundColor3 = options.bgcolor,
+        BorderSizePixel = 0,
+        ClipsDescendants = true;
+    })
 
-	local open = true
+    self:Create("UICorner", {CornerRadius = UDim.new(0, 10), Parent = window.background})
+    self:Create("UIStroke", {
+        Color = options.strokecolor,
+        Thickness = 1,
+        Transparency = 0.5,
+        Parent = window.background
+    })
 
-	local function resize()
-		if open then
-			local h = layout.AbsoluteContentSize.Y + 24
-			container.Size = UDim2.new(1,0,0,h)
-			frame.Size = UDim2.new(0,300,0,h+40)
-		else
-			container.Size = UDim2.new(1,0,0,0)
-			frame.Size = UDim2.fromOffset(300,40)
-		end
-	end
+    --// CONTAINER
+    window.container = self:Create("Frame", {
+        Parent = window.background,
+        Size = UDim2.new(1, 0, 1, 0),
+        BackgroundTransparency = 1,
+        BorderSizePixel = 0,
+        ClipsDescendants = true;
+    })
 
-	layout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(resize)
+    self:Create("UIListLayout", {
+        Parent = window.container,
+        SortOrder = Enum.SortOrder.LayoutOrder
+    })
 
-	toggle.MouseButton1Click:Connect(function()
-		open = not open
-		toggle.Text = open and "–" or "+"
-		resize()
-	end)
+    self:Create("UIPadding", {
+        Parent = window.container,
+        PaddingLeft = UDim.new(0, 10),
+        PaddingTop = UDim.new(0, 8)
+    })
 
-	--// Toggle
-	function window:AddToggle(text,cb)
-		local state = false
+    dragger.new(window.frame)
+    resizer.new(window.background, window.container)
 
-		local holder = Instance.new("Frame",container)
-		holder.Size = UDim2.new(1,0,0,28)
-		holder.BackgroundTransparency = 1
+    local function getSize()
+        local y = 0
+        for _, v in next, window.container:GetChildren() do
+            if v:IsA("GuiObject") then
+                y += v.AbsoluteSize.Y
+            end
+        end
+        return UDim2.new(1, 0, 0, y + 12)
+    end
 
-		local label = Instance.new("TextLabel",holder)
-		label.Size = UDim2.new(1,-60,1,0)
-		label.BackgroundTransparency = 1
-		label.Text = text
-		label.Font = Enum.Font.Gotham
-		label.TextSize = 14
-		label.TextColor3 = theme.text
-		label.TextXAlignment = Enum.TextXAlignment.Left
+    function window:Resize(tween, change)
+        local size = change or getSize()
+        if tween then
+            self.background:TweenSize(size, "Out", "Sine", 0.4, true)
+        else
+            self.background.Size = size
+        end
+    end
 
-		local bg = Instance.new("Frame",holder)
-		bg.Size = UDim2.fromOffset(36,18)
-		bg.Position = UDim2.new(1,-36,0.5,-9)
-		bg.BackgroundColor3 = theme.stroke
-		round(bg,9)
+    togglebutton.MouseButton1Click:Connect(function()
+        window.closed = not window.closed
+        togglebutton.Text = window.closed and "+" or "–"
+        window:Resize(true, window.closed and UDim2.new(1,0,0,0) or nil)
+    end)
 
-		local knob = Instance.new("Frame",bg)
-		knob.Size = UDim2.fromOffset(14,14)
-		knob.Position = UDim2.fromOffset(2,2)
-		knob.BackgroundColor3 = Color3.fromRGB(255,255,255)
-		round(knob,7)
+    --// CONTROLS (VISUAL ONLY MODIFIED)
+    function window:AddButton(text, callback)
+        callback = callback or function() end
 
-		holder.InputBegan:Connect(function(i)
-			if i.UserInputType == Enum.UserInputType.MouseButton1 then
-				state = not state
-				tween(knob,{Position = state and UDim2.fromOffset(20,2) or UDim2.fromOffset(2,2)})
-				tween(bg,{BackgroundColor3 = state and theme.accent or theme.stroke})
-				cb(state)
-			end
-		end)
-	end
+        local button = library:Create("TextButton", {
+            Text = text,
+            Size = UDim2.new(1, -10, 0, 24),
+            BackgroundColor3 = options.boxcolor,
+            TextColor3 = options.txtcolor,
+            TextXAlignment = Left,
+            TextSize = 15,
+            Font = Enum.Font.Gotham,
+            BorderSizePixel = 0,
+            Parent = self.container
+        })
 
-	--// Button
-	function window:AddButton(text,cb)
-		local b = Instance.new("TextButton",container)
-		b.Size = UDim2.new(1,0,0,28)
-		b.BackgroundColor3 = theme.stroke
-		b.Text = text
-		b.Font = Enum.Font.Gotham
-		b.TextSize = 14
-		b.TextColor3 = theme.text
-		round(b,8)
-		b.MouseButton1Click:Connect(cb)
-	end
+        self:Create("UICorner", {CornerRadius = UDim.new(0,6), Parent = button})
+        self:Create("UIStroke", {Color = options.strokecolor, Transparency = 0.6, Parent = button})
 
-	--// Box
-	function window:AddBox(placeholder,cb)
-		local box = Instance.new("TextBox",container)
-		box.Size = UDim2.new(1,0,0,28)
-		box.BackgroundColor3 = theme.stroke
-		box.PlaceholderText = placeholder
-		box.Text = ""
-		box.Font = Enum.Font.Gotham
-		box.TextSize = 14
-		box.TextColor3 = theme.text
-		round(box,8)
-		box.FocusLost:Connect(function()
-			cb(box)
-		end)
-	end
+        button.MouseButton1Click:Connect(callback)
+        self:Resize()
+        return button
+    end
 
-	return window
+    function window:AddLabel(text)
+        local label = library:Create("TextLabel", {
+            Text = text,
+            Size = UDim2.new(1, -10, 0, 22),
+            BackgroundTransparency = 1,
+            TextColor3 = options.txtcolor,
+            TextXAlignment = Left,
+            TextSize = 15,
+            Font = Enum.Font.Gotham,
+            Parent = self.container
+        })
+
+        self:Resize()
+        return label
+    end
+
+    return window
 end
 
 return library
