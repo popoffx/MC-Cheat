@@ -175,13 +175,16 @@ function library:CreateWindow(options)
     })
 
     --// CONTAINER
-    window.container = self:Create("Frame", {
-        Parent = window.background,
-        Size = UDim2.new(1, 0, 1, 0),
-        BackgroundTransparency = 1,
-        BorderSizePixel = 0,
-        ClipsDescendants = true;
-    })
+    window.container = self:Create('Frame', {
+    Name = 'Container';
+    Parent = window.background, -- IMPORTANT FIX
+    BorderSizePixel = 0;
+    BackgroundTransparency = 1;
+    Position = UDim2.new(0, 0, 0, 0),
+    Size = UDim2.new(1, 0, 1, 0),
+    ClipsDescendants = false;
+})
+
 
     self:Create("UIListLayout", {
         Parent = window.container,
@@ -195,7 +198,7 @@ function library:CreateWindow(options)
     })
 
     dragger.new(window.frame)
-    resizer.new(window.background, window.container)
+    resizer.new(window.container, window.background);
 
     local function getSize()
         local y = 0
@@ -266,3 +269,4 @@ function library:CreateWindow(options)
 end
 
 return library
+
