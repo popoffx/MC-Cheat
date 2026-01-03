@@ -1,47 +1,43 @@
 -- // MIDNIGHT CHASERS FARM & UTILITY \\ --
--- Modernized UI & Client-Side Optimizations --
 
 -- [1] UTILITY FUNCTIONS
+
+-- Function to handle Traffic (Client Side)
 local function clearTraffic(state)
-    -- This function handles the NPC traffic clearing (Client Side Only)
-    local trafficFolder = workspace:FindFirstChild("NPCVehicles") and workspace.NPCVehicles:FindFirstChild("Vehicles")
-    
-    if not trafficFolder then return end
+	local trafficFolder = workspace:FindFirstChild("NPCVehicles") and workspace.NPCVehicles:FindFirstChild("Vehicles")
+	if not trafficFolder then return end
 
-    if state then
-        -- Create a holder in ReplicatedStorage to hide them locally
-        if not getfenv().hiddenTraffic then
-            getfenv().hiddenTraffic = Instance.new("Folder", game.ReplicatedStorage)
-            getfenv().hiddenTraffic.Name = "HiddenNPCVehicles"
-        end
-
-        -- Move existing cars
-        for _, v in pairs(trafficFolder:GetChildren()) do
-            v.Parent = getfenv().hiddenTraffic
-        end
-
-        -- Connection to catch newly spawned cars
-        getfenv().trafficConnection = trafficFolder.ChildAdded:Connect(function(child)
-            task.wait() -- Wait for properties to load
-            if getfenv().hiddenTraffic then
-                child.Parent = getfenv().hiddenTraffic
-            end
-        end)
-    else
-        -- Restore cars (Optional, but good practice)
-        if getfenv().trafficConnection then
-            getfenv().trafficConnection:Disconnect()
-            getfenv().trafficConnection = nil
-        end
-        
-        if getfenv().hiddenTraffic then
-            for _, v in pairs(getfenv().hiddenTraffic:GetChildren()) do
-                v.Parent = trafficFolder
-            end
-            getfenv().hiddenTraffic:Destroy()
-            getfenv().hiddenTraffic = nil
-        end
-    end
+	if state then
+		-- Create a holder in ReplicatedStorage to hide them locally
+		if not getfenv().hiddenTraffic then
+			getfenv().hiddenTraffic = Instance.new("Folder", game.ReplicatedStorage)
+			getfenv().hiddenTraffic.Name = "HiddenNPCVehicles"
+		end
+		-- Move existing cars
+		for _, v in pairs(trafficFolder:GetChildren()) do
+			v.Parent = getfenv().hiddenTraffic
+		end
+		-- Connection to catch newly spawned cars
+		getfenv().trafficConnection = trafficFolder.ChildAdded:Connect(function(child)
+			task.wait() 
+			if getfenv().hiddenTraffic then
+				child.Parent = getfenv().hiddenTraffic
+			end
+		end)
+	else
+		-- Restore cars
+		if getfenv().trafficConnection then
+			getfenv().trafficConnection:Disconnect()
+			getfenv().trafficConnection = nil
+		end
+		if getfenv().hiddenTraffic then
+			for _, v in pairs(getfenv().hiddenTraffic:GetChildren()) do
+				v.Parent = trafficFolder
+			end
+			getfenv().hiddenTraffic:Destroy()
+			getfenv().hiddenTraffic = nil
+		end
+	end
 end
 
 -- [2] ANTI-AFK LOGIC
@@ -189,19 +185,12 @@ local function tweenToLocation(car, locations, plr)
 	getfenv().cancelman = nil
 end
 
--- [4] UI IMPLEMENTATION
--- NOTE: If you host the modern UI raw file, replace the loadstring below.
--- For now, I am assuming you have the modern UI code. If not, paste the UI code above into a pastebin and link it.
--- Or, if you want this to work instantly, replace the loadstring line with the content of ui.lua wrapped in a function.
+-- [4] UI LOAD
+-- If you hosted the UI file, use this:
+-- local library = loadstring(game:HttpGet("https://raw.githubusercontent.com/Schlabbadabadoo/RandomScripts/refs/heads/main/ui.lua", true))()
 
--- Loading the UI (Replace this URL with your raw hosted 'ui.lua' if you want)
--- For demonstration, I will assume the library is loaded into variable `library` via loadstring or direct paste.
--- Example: local library = loadstring(game:HttpGet("https://raw.githubusercontent.com/popoffx/MC-Cheat/refs/heads/main/modern_ui.lua", true))()
-
--- *TEMPORARY FIX FOR SINGLE SCRIPT USE*: I will paste the UI logic here to make it work out of the box.
+-- If you want the UI contained within this script, use this block below:
 local library = (function()
-    -- PASTE THE MODERN UI CODE HERE OR USE LOADSTRING
-    -- <Past Modern UI Code Here>
     local TweenService = game:GetService("TweenService")
     local Library = {}
     local UIConfig = {
@@ -253,6 +242,17 @@ local library = (function()
                 local tPos = isEnabled and UDim2.new(1, -18, 0.5, 0) or UDim2.new(0, 2, 0.5, 0)
                 local tCol = isEnabled and UIConfig.AccentColor or Color3.fromRGB(50,50,50)
                 TweenService:Create(Circle, TweenInfo.new(0.2), {Position = tPos}):Play(); TweenService:Create(SwitchBg, TweenInfo.new(0.2), {BackgroundColor3 = tCol}):Play()
+            end); Resize()
+        end
+        function Elements:AddButton(text, callback)
+            local Btn = Instance.new("TextButton", Container); Btn.Size = UDim2.new(1, 0, 0, 30); Btn.BackgroundColor3 = UIConfig.SecondaryColor
+            Btn.Text = text; Btn.TextColor3 = UIConfig.TextColor; Btn.Font = Enum.Font.GothamMedium; Btn.TextSize = 14
+            Instance.new("UICorner", Btn).CornerRadius = UDim.new(0, 6)
+            Btn.MouseButton1Click:Connect(function() 
+                TweenService:Create(Btn, TweenInfo.new(0.1), {BackgroundColor3 = UIConfig.AccentColor}):Play()
+                task.wait(0.1)
+                TweenService:Create(Btn, TweenInfo.new(0.3), {BackgroundColor3 = UIConfig.SecondaryColor}):Play()
+                callback() 
             end); Resize()
         end
         Resize(); return Elements
@@ -365,4 +365,40 @@ end)
 
 example:AddToggle("Disable NPC Traffic", function(state)
 	clearTraffic(state)
+end)
+
+-- RESET / STOP BUTTON
+example:AddButton("STOP ALL / RESET", function()
+	-- 1. Stop the Loops
+	getfenv().auto = false
+	_G.test = false
+	
+	-- 2. Cancel any active movement
+	if getfenv().tween then
+		getfenv().tween:Cancel()
+		getfenv().tween = nil
+	end
+	getfenv().cancelman = nil
+
+	-- 3. Stop the Car Physics immediately
+	local plr = game.Players.LocalPlayer
+	if plr.Character and plr.Character:FindFirstChild("Humanoid") and plr.Character.Humanoid.SeatPart then
+		local car = plr.Character.Humanoid.SeatPart.Parent
+		if car and car.PrimaryPart then
+			car.PrimaryPart.AssemblyLinearVelocity = Vector3.zero
+			car.PrimaryPart.AssemblyAngularVelocity = Vector3.zero
+		end
+	end
+
+	-- 4. Restore Map and Traffic
+	restoreWorkspaceObjects()
+	clearTraffic(false) 
+
+	-- 5. Delete the temporary platform
+	if _G.ooga then
+		_G.ooga:Destroy()
+		_G.ooga = nil
+	end
+	
+	warn("RESET: Script functions stopped and environment restored.")
 end)
