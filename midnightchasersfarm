@@ -1,4 +1,4 @@
--- // MIDNIGHT CHASERS FARM & UTILITY - ULTIMATE EDITION (GROUNDED V3) \\ --
+-- // MIDNIGHT CHASERS FARM & UTILITY - MAGNET EDITION (RAIL HANDLING) \\ --
 
 -- [0] VARIABLES & SERVICES
 local Players = game:GetService("Players")
@@ -253,7 +253,7 @@ UserInputService.InputBegan:Connect(function(input, gpe)
 	end
 end)
 
--- [NEW] PHYSICS CONTROLLER V3 (STABLE & GROUNDED)
+-- [NEW] PHYSICS CONTROLLER V4 (MAGNET & RAIL STEERING)
 RunService.Heartbeat:Connect(function()
     local char = LocalPlayer.Character
     if char and char:FindFirstChild("Humanoid") and char.Humanoid.SeatPart then
@@ -263,37 +263,55 @@ RunService.Heartbeat:Connect(function()
         
         if not root then return end
 
-        local vel = root.AssemblyLinearVelocity
-        local speedVal = tonumber(getfenv().driveSpeedLimit) or 0
         local accelActive = getfenv().superAccel
+        local speedVal = tonumber(getfenv().driveSpeedLimit) or 0
+        local isActive = (accelActive or speedVal > 0)
         
-        -- Check Input
-        local pressingW = UserInputService:IsKeyDown(Enum.KeyCode.W)
+        -- Raycast for Ground
+        local rayOrigin = root.Position
+        local rayDirection = Vector3.new(0, -15, 0)
+        local raycastParams = RaycastParams.new()
+        raycastParams.FilterDescendantsInstances = {car, char}
+        raycastParams.FilterType = Enum.RaycastFilterType.Exclude
+        local rayResult = Workspace:Raycast(rayOrigin, rayDirection, raycastParams)
+        local isGrounded = (rayResult ~= nil)
 
-        -- 1. SUPER ACCELERATION (Additive, No Cap)
-        if accelActive and pressingW then
-            -- Simply adds force to where you are looking.
-            -- Using a multiplier based on mass for consistency.
-            root.AssemblyLinearVelocity = root.AssemblyLinearVelocity + (root.CFrame.LookVector * 2)
-        end
+        -- If physics mods are active and we are driving
+        if isActive and isGrounded then
+            
+            -- A. STEERING ASSIST (The "Instant Turn")
+            -- We manually rotate the car (Yaw) to make steering responsive at high speed
+            local turnSpeed = 2.5 -- Sensitivity
+            if UserInputService:IsKeyDown(Enum.KeyCode.A) then
+                root.AssemblyAngularVelocity = Vector3.new(0, turnSpeed, 0)
+            elseif UserInputService:IsKeyDown(Enum.KeyCode.D) then
+                root.AssemblyAngularVelocity = Vector3.new(0, -turnSpeed, 0)
+            end
 
-        -- 2. FORCE SPEED (Anti-Fly Logic)
-        if speedVal > 0 and pressingW then
-            -- A. Calculate "Flat" Direction (Remove Y Axis)
+            -- B. THE "MAGNET RAIL" LOGIC
+            -- 1. Get where the car is nose-pointing right now
             local lv = root.CFrame.LookVector
-            local flatDir = Vector3.new(lv.X, 0, lv.Z).Unit -- Normalize to length 1
+            local flatDir = Vector3.new(lv.X, 0, lv.Z).Unit -- Remove Up/Down tilt
+
+            -- 2. Determine Speed
+            local currentSpeed = root.AssemblyLinearVelocity.Magnitude
             
-            -- B. Determine Goal Velocity
-            local goalVel = flatDir * speedVal
+            -- If Super Accel is on, add speed
+            if accelActive and UserInputService:IsKeyDown(Enum.KeyCode.W) then
+                currentSpeed = currentSpeed + 3 -- Additive Acceleration per frame
+            elseif speedVal > 0 and UserInputService:IsKeyDown(Enum.KeyCode.W) then
+                 -- If Force Speed is on, target that speed
+                 currentSpeed = speedVal
+            end
+
+            -- 3. Apply Velocity
+            -- This sets the velocity EXACTLY to where the car is facing.
+            -- It completely deletes "Slide" (RightVector velocity).
+            -- We set Y to -50 to force it into the ground (Magnet).
             
-            -- C. Apply
-            -- We keep the current Y velocity (gravity), but apply strict X/Z speed.
-            -- We add -1 to Y to act as "Downforce" so it sticks to the road.
-            root.AssemblyLinearVelocity = Vector3.new(goalVel.X, vel.Y - 1, goalVel.Z)
-            
-            -- D. Stabilizer (Prevents Spinning Out)
-            -- If the car is turning too fast, dampen the rotation slightly
-            root.AssemblyAngularVelocity = root.AssemblyAngularVelocity:Lerp(Vector3.zero, 0.05)
+            if UserInputService:IsKeyDown(Enum.KeyCode.W) then
+                root.AssemblyLinearVelocity = Vector3.new(flatDir.X * currentSpeed, -50, flatDir.Z * currentSpeed)
+            end
         end
     end
 end)
