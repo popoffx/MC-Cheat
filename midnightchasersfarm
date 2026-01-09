@@ -1,4 +1,4 @@
--- // MIDNIGHT CHASERS FARM & UTILITY - ULTIMATE EDITION BY POPOFF (STABLE FIX) \\ --
+-- // MIDNIGHT CHASERS FARM & UTILITY - ULTIMATE EDITION BY POPOFF (HANDLING REMASTER) \\ --
 
 -- [0] VARIABLES & SERVICES
 local Players = game:GetService("Players")
@@ -253,7 +253,7 @@ UserInputService.InputBegan:Connect(function(input, gpe)
 	end
 end)
 
--- [NEW] SPEED & ACCELERATION LOGIC (FIXED)
+-- [NEW] PHYSICS LOOP: Handling, Brakes, Speed
 RunService.Heartbeat:Connect(function()
     local char = LocalPlayer.Character
     if char and char:FindFirstChild("Humanoid") and char.Humanoid.SeatPart then
@@ -263,40 +263,57 @@ RunService.Heartbeat:Connect(function()
         
         if not root then return end
 
-        -- Ground Check: Only apply speed mods if car is on the ground
-        -- This prevents the "Flying / Airplane" glitch
+        -- Ground Check (prevents flying)
         local rayOrigin = root.Position
-        local rayDirection = Vector3.new(0, -15, 0) -- Check 15 studs down
+        local rayDirection = Vector3.new(0, -15, 0) 
         local raycastParams = RaycastParams.new()
         raycastParams.FilterDescendantsInstances = {car, char}
         raycastParams.FilterType = Enum.RaycastFilterType.Exclude
         local rayResult = Workspace:Raycast(rayOrigin, rayDirection, raycastParams)
         local isGrounded = (rayResult ~= nil)
 
-        -- 1. Super Acceleration (0-100 Boost)
-        -- Uses Velocity Injection instead of Torque for better compatibility
-        if getfenv().superAccel and UserInputService:IsKeyDown(Enum.KeyCode.W) and isGrounded then
-            local currentSpeed = root.AssemblyLinearVelocity.Magnitude
-            if currentSpeed < 150 then -- Only boost start speeds (0-150)
-                -- Add forward velocity relative to mass
-                root.AssemblyLinearVelocity = root.AssemblyLinearVelocity + (root.CFrame.LookVector * 5)
-            end
+        local currentVel = root.AssemblyLinearVelocity
+        local lookVector = root.CFrame.LookVector
+        local rightVector = root.CFrame.RightVector
+
+        -- [A] ENHANCED BRAKING
+        if UserInputService:IsKeyDown(Enum.KeyCode.S) then
+            -- Active Braking: Lerp velocity quickly towards zero to simulate powerful brakes
+            root.AssemblyLinearVelocity = currentVel:Lerp(Vector3.zero, 0.15)
+            return -- Skip acceleration logic while braking
         end
 
-        -- 2. Force Drive Speed (Smooth & Stuck to Road)
-        local targetSpeed = tonumber(getfenv().driveSpeedLimit)
-        if targetSpeed and targetSpeed > 0 and UserInputService:IsKeyDown(Enum.KeyCode.W) then
-            if isGrounded then
-                -- Get Flat Direction (Remove Up/Down pitch to prevent take-off)
-                local lookDir = root.CFrame.LookVector
-                local flatDir = Vector3.new(lookDir.X, 0, lookDir.Z).Unit
+        -- [B] DRIVE & STEERING
+        if UserInputService:IsKeyDown(Enum.KeyCode.W) and isGrounded then
+            
+            -- 1. Super Acceleration (Smooth)
+            if getfenv().superAccel and currentVel.Magnitude < 200 then
+                 -- Add gentle boost vector
+                 root.AssemblyLinearVelocity = root.AssemblyLinearVelocity + (lookVector * 6)
+            end
+
+            -- 2. Force Drive Speed (With Traction Control)
+            local targetSpeed = tonumber(getfenv().driveSpeedLimit)
+            if targetSpeed and targetSpeed > 0 then
                 
-                -- Preserve Gravity (Y Velocity)
-                local currentVel = root.AssemblyLinearVelocity
-                local newVel = flatDir * targetSpeed
+                -- Traction Control: Calculate sideways sliding amount
+                local driftVelocity = currentVel:Dot(rightVector)
                 
-                -- Apply: Target X/Z Speed + Existing Gravity - Slight Downforce
-                root.AssemblyLinearVelocity = Vector3.new(newVel.X, currentVel.Y - 2, newVel.Z)
+                -- Drift Correction Vector (Counteract the slide)
+                -- 0.8 means we remove 80% of the drift, keeping steering tight but not robotic
+                local correction = rightVector * driftVelocity * 0.8
+                
+                -- Desired Velocity: Where we are facing * Speed
+                local desiredForward = lookVector * targetSpeed
+                
+                -- Maintain Y velocity (Gravity)
+                local newVelocity = Vector3.new(desiredForward.X, currentVel.Y - 1, desiredForward.Z)
+                
+                -- Apply: Target - Slide + Gravity
+                local finalVelocity = newVelocity - correction
+                
+                -- Smooth Application (Lerp) to avoid jitter
+                root.AssemblyLinearVelocity = currentVel:Lerp(finalVelocity, 0.1)
             end
         end
     end
