@@ -1,4 +1,4 @@
--- // MIDNIGHT CHASERS FARM & UTILITY - ARCADE EDITION (NO SHAKE) \\ --
+-- // MIDNIGHT CHASERS - ARCADE & MONEY EDITION \\ --
 
 -- [0] SERVICES & VARIABLES
 local Players = game:GetService("Players")
@@ -11,7 +11,7 @@ local LocalPlayer = Players.LocalPlayer
 
 -- Global State Variables
 getfenv().auto = false
-_G.test = false
+getfenv().moneyFarm = false -- New Money Variable
 getfenv().carFly = false
 getfenv().espEnabled = false
 getfenv().fullBright = false
@@ -156,43 +156,87 @@ local function toggleHitboxExpander(state)
 	end
 end
 
--- [Smart Race Autopilot]
-local function startSmartRace()
-	local char = LocalPlayer.Character
-	if not char or not char.Humanoid.SeatPart then
-		game.StarterGui:SetCore("SendNotification", {Title = "Error"; Text = "Sit in a car!"; Duration = 3})
-		return
-	end
-	
-	local raceContainer = nil
-	for _, model in pairs(Workspace:GetDescendants()) do
-		if (model:IsA("Model") or model:IsA("Folder")) and model:FindFirstChild("1") and model:FindFirstChild("2") then
-			raceContainer = model
-			break
-		end
-	end
-	
-	if not raceContainer then return end
-	
-	local checkpoints = {}
-	for _, child in pairs(raceContainer:GetChildren()) do
-		local num = tonumber(child.Name)
-		if num then table.insert(checkpoints, {part = child, index = num}) end
-	end
-	table.sort(checkpoints, function(a, b) return a.index < b.index end)
-	
-	ensureGroundPart()
-	local car = char.Humanoid.SeatPart.Parent
-	local speed = getfenv().speed or 300
-	
-	for _, pt in ipairs(checkpoints) do
-		if not getfenv().auto then break end
-		tweenToPosition(car, pt.part.CFrame, speed)
-		task.wait(0.1)
+-- [Helper Functions]
+local function ensureGroundPart()
+	if not _G.ooga then
+		local new = Instance.new("Part", Workspace)
+		new.Anchored = true; new.Size = Vector3.new(10000, 10, 10000); new.Position = Vector3.new(0, -500, 0)
+		_G.ooga = new
 	end
 end
 
--- [NEW] BUTTERY SMOOTH PHYSICS ENGINE
+local function tweenToPosition(car, targetCFrame, speed)
+	local targetPos = (typeof(targetCFrame) == "CFrame") and targetCFrame.Position or targetCFrame
+	local dist = (car.PrimaryPart.Position - targetPos).magnitude
+	local ti = TweenInfo.new(dist / speed, Enum.EasingStyle.Linear)
+	local tv = Instance.new("CFrameValue")
+	tv.Value = car:GetPrimaryPartCFrame()
+	
+	tv.Changed:Connect(function()
+		_G.ooga.Position = tv.Value.Position - Vector3.new(0, 14, 0)
+		car:PivotTo(CFrame.new(_G.ooga.Position + Vector3.new(0, 7, 0), targetPos))
+	end)
+	
+	getfenv().tween = TweenService:Create(tv, ti, {Value = CFrame.new(targetPos)})
+	getfenv().tween:Play()
+	repeat task.wait() until getfenv().tween.PlaybackState ~= Enum.PlaybackState.Playing
+	tv:Destroy()
+end
+
+-- [MONEY GENERATOR LOGIC]
+local function runMoneyLoop()
+    while getfenv().moneyFarm do
+        local char = LocalPlayer.Character
+        if not char or not char.Humanoid.SeatPart then
+            -- Wait for user to get in car
+            task.wait(1)
+            continue
+        end
+
+        local car = char.Humanoid.SeatPart.Parent
+        local speed = getfenv().speed or 350
+        
+        -- 1. Find Race
+        local raceContainer = nil
+        for _, model in pairs(Workspace:GetDescendants()) do
+            if (model:IsA("Model") or model:IsA("Folder")) and model:FindFirstChild("1") and model:FindFirstChild("2") then
+                raceContainer = model
+                break
+            end
+        end
+        
+        if raceContainer then
+            local checkpoints = {}
+            for _, child in pairs(raceContainer:GetChildren()) do
+                local num = tonumber(child.Name)
+                if num then table.insert(checkpoints, {part = child, index = num}) end
+            end
+            table.sort(checkpoints, function(a, b) return a.index < b.index end)
+            
+            ensureGroundPart()
+            
+            -- 2. Run Race
+            for _, pt in ipairs(checkpoints) do
+                if not getfenv().moneyFarm then break end
+                tweenToPosition(car, pt.part.CFrame, speed)
+                task.wait(0.05) -- Fast ticks
+            end
+            
+            -- 3. Reset to Start (Loop)
+            if checkpoints[1] and getfenv().moneyFarm then
+                task.wait(0.5) -- Wait for Finish UI
+                -- Instant teleport back to start
+                car:PivotTo(checkpoints[1].part.CFrame)
+                task.wait(1) -- Wait for race start countdown
+            end
+        else
+            -- No race found? Wait and try again
+            task.wait(2)
+        end
+    end
+end
+
+-- [BUTTERY SMOOTH PHYSICS ENGINE]
 local function enableArcadePhysics(root, enable)
     if enable then
         -- Create Movers if they don't exist
@@ -316,32 +360,6 @@ LocalPlayer.Idled:connect(function()
 	game:GetService("VirtualUser"):ClickButton2(Vector2.new())
 end)
 
-local function ensureGroundPart()
-	if not _G.ooga then
-		local new = Instance.new("Part", Workspace)
-		new.Anchored = true; new.Size = Vector3.new(10000, 10, 10000); new.Position = Vector3.new(0, -500, 0)
-		_G.ooga = new
-	end
-end
-
-local function tweenToPosition(car, targetCFrame, speed)
-	local targetPos = (typeof(targetCFrame) == "CFrame") and targetCFrame.Position or targetCFrame
-	local dist = (car.PrimaryPart.Position - targetPos).magnitude
-	local ti = TweenInfo.new(dist / speed, Enum.EasingStyle.Linear)
-	local tv = Instance.new("CFrameValue")
-	tv.Value = car:GetPrimaryPartCFrame()
-	
-	tv.Changed:Connect(function()
-		_G.ooga.Position = tv.Value.Position - Vector3.new(0, 14, 0)
-		car:PivotTo(CFrame.new(_G.ooga.Position + Vector3.new(0, 7, 0), targetPos))
-	end)
-	
-	getfenv().tween = TweenService:Create(tv, ti, {Value = CFrame.new(targetPos)})
-	getfenv().tween:Play()
-	repeat task.wait() until getfenv().tween.PlaybackState ~= Enum.PlaybackState.Playing
-	tv:Destroy()
-end
-
 -- [4] UI LOAD
 local library = (function()
     local Library = {}
@@ -357,7 +375,7 @@ local library = (function()
         pcall(function() ScreenGui.Parent = game:GetService("CoreGui") end)
         if not ScreenGui.Parent then ScreenGui.Parent = LocalPlayer:WaitForChild("PlayerGui") end
         local MainFrame = Instance.new("Frame", ScreenGui)
-        MainFrame.Name = "MainFrame"; MainFrame.Size = UDim2.fromOffset(220, 300); MainFrame.Position = UDim2.fromScale(0.1, 0.1)
+        MainFrame.Name = "MainFrame"; MainFrame.Size = UDim2.fromOffset(220, 320); MainFrame.Position = UDim2.fromScale(0.1, 0.1)
         MainFrame.BackgroundColor3 = UIConfig.MainColor; MainFrame.BorderSizePixel = 0
         Instance.new("UICorner", MainFrame).CornerRadius = UIConfig.CornerRadius
         local Stroke = Instance.new("UIStroke", MainFrame); Stroke.Color = UIConfig.AccentColor; Stroke.Thickness = 1; Stroke.Transparency = 0.5
@@ -428,7 +446,7 @@ end)()
 local example = library:CreateWindow({ text = "MCCheat - BY POPOFF" })
 
 -- == MAIN FEATURES ==
-example:AddBox("Set Tween Speed (Def: 230)", function(object, focus)
+example:AddBox("Tween Speed (Def: 230)", function(object, focus)
 	if focus then getfenv().speed = tonumber(object.Text) end
 end)
 
@@ -442,45 +460,44 @@ example:AddToggle("Super Acceleration (Arcade)", function(state)
     getfenv().superAccel = state
 end)
 
-example:AddButton("Auto Win Race (Smart Tween)", function()
+example:AddToggle("Money Generator (Race Loop)", function(state)
+    getfenv().moneyFarm = state
+    if state then
+        task.spawn(runMoneyLoop)
+    end
+end)
+
+example:AddButton("Auto Win Race (Once)", function()
 	getfenv().auto = true
-	startSmartRace()
+	task.spawn(function()
+        local char = LocalPlayer.Character
+        local car = char.Humanoid.SeatPart.Parent
+        local raceContainer = nil
+        for _, model in pairs(Workspace:GetDescendants()) do
+            if (model:IsA("Model") or model:IsA("Folder")) and model:FindFirstChild("1") and model:FindFirstChild("2") then
+                raceContainer = model
+                break
+            end
+        end
+        if raceContainer then
+            local checkpoints = {}
+            for _, child in pairs(raceContainer:GetChildren()) do
+                local num = tonumber(child.Name)
+                if num then table.insert(checkpoints, {part = child, index = num}) end
+            end
+            table.sort(checkpoints, function(a, b) return a.index < b.index end)
+            ensureGroundPart()
+            for _, pt in ipairs(checkpoints) do
+                tweenToPosition(car, pt.part.CFrame, getfenv().speed or 300)
+                task.wait(0.1)
+            end
+        end
+    end)
 	getfenv().auto = false
 end)
 
 example:AddToggle("Hitbox Expander", function(state)
 	toggleHitboxExpander(state)
-end)
-
-example:AddToggle("Auto Farm (Legacy)", function(state)
-	getfenv().auto = state
-	if state then
-		task.wait()
-	else
-		if getfenv().tween then getfenv().tween:Cancel() end
-	end
-	
-	while getfenv().auto do
-		local chr = LocalPlayer.Character
-		local hum = chr.Humanoid
-		local car = hum.SeatPart and hum.SeatPart.Parent
-		if car then
-			ensureGroundPart()
-			local frames = {
-				CFrame.new(105, -26, 7965), CFrame.new(2751, -26, 3694),
-				CFrame.new(-8821, -26, 2042), CFrame.new(-6408, -26, -727),
-				CFrame.new(-6099, -26, -1027), CFrame.new(-6066, -26, 493),
-				CFrame.new(132, -26, 15), CFrame.new(-7692, -26, -4668),
-				CFrame.new(4887, -26, 1222)
-			}
-			for i, v in pairs(frames) do
-				if not getfenv().auto then break end
-				tweenToPosition(car, v, getfenv().speed or 300)
-			end
-		else
-			task.wait(1)
-		end
-	end
 end)
 
 -- == FUN / UTILITY ==
@@ -517,7 +534,7 @@ end)
 -- == RESET ==
 example:AddButton("STOP ALL / RESET", function()
 	getfenv().auto = false
-	_G.test = false
+	getfenv().moneyFarm = false
 	getfenv().carFly = false
 	getfenv().espEnabled = false
 	getfenv().fullBright = false
@@ -533,7 +550,6 @@ example:AddButton("STOP ALL / RESET", function()
 	
 	Lighting.ClockTime = 0; Lighting.GlobalShadows = true
 	if _G.ooga then _G.ooga:Destroy(); _G.ooga = nil end
-    -- Physics Cleanup
     local char = LocalPlayer.Character
     if char and char:FindFirstChild("Humanoid") and char.Humanoid.SeatPart then
         local car = char.Humanoid.SeatPart.Parent
