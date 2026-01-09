@@ -1,619 +1,477 @@
--- // MIDNIGHT CHASERS FARM & UTILITY - ULTIMATE EDITION BY POPOFF \\ --
+-- // MIDNIGHT CHASERS FARM & UTILITY - REMASTERED // --
 
--- [0] VARIABLES & SERVICES
+-- [0] SERVICES & VARIABLES
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
 local Lighting = game:GetService("Lighting")
 local TweenService = game:GetService("TweenService")
 local Workspace = game:GetService("Workspace")
+local CoreGui = game:GetService("CoreGui")
 local LocalPlayer = Players.LocalPlayer
 
 -- Global State Variables
-getfenv().auto = false
-_G.test = false
+getfenv().autoRace = false
+getfenv().autoDeliver = false
 getfenv().carFly = false
 getfenv().espEnabled = false
 getfenv().fullBright = false
 getfenv().hitboxExpanded = false
+getfenv().loopRace = false -- New: Loop the race
+getfenv().speed = 250      -- Default Tween Speed
 
--- Storage for original sizes (for Hitbox Expander)
+-- Storage
 local originalSizes = {}
+local activeTweens = {}
 
--- [1] UTILITY FUNCTIONS
+-- [1] MODERN UI LIBRARY (Integrated)
+local Library = {}
+local UIConfig = {
+    MainColor = Color3.fromRGB(25, 25, 25),
+    SecondaryColor = Color3.fromRGB(35, 35, 35),
+    AccentColor = Color3.fromRGB(0, 170, 255),
+    TextColor = Color3.fromRGB(240, 240, 240),
+    Font = Enum.Font.GothamBold,
+    CornerRadius = UDim.new(0, 8)
+}
 
--- Function to handle Traffic (Client Side)
-local function clearTraffic(state)
-	local trafficFolder = Workspace:FindFirstChild("NPCVehicles") and Workspace.NPCVehicles:FindFirstChild("Vehicles")
-	if not trafficFolder then return end
+function Library:CreateWindow(options)
+    local WindowName = options.text or "Script"
+    local ScreenGui = Instance.new("ScreenGui")
+    ScreenGui.Name = "MidnightChasersUI_Remastered"
+    pcall(function() ScreenGui.Parent = CoreGui end)
+    if not ScreenGui.Parent then ScreenGui.Parent = LocalPlayer:WaitForChild("PlayerGui") end
 
-	if state then
-		if not getfenv().hiddenTraffic then
-			getfenv().hiddenTraffic = Instance.new("Folder", game.ReplicatedStorage)
-			getfenv().hiddenTraffic.Name = "HiddenNPCVehicles"
-		end
-		for _, v in pairs(trafficFolder:GetChildren()) do
-			v.Parent = getfenv().hiddenTraffic
-		end
-		getfenv().trafficConnection = trafficFolder.ChildAdded:Connect(function(child)
-			task.wait() 
-			if getfenv().hiddenTraffic then
-				child.Parent = getfenv().hiddenTraffic
-			end
-		end)
-	else
-		if getfenv().trafficConnection then
-			getfenv().trafficConnection:Disconnect()
-			getfenv().trafficConnection = nil
-		end
-		if getfenv().hiddenTraffic then
-			for _, v in pairs(getfenv().hiddenTraffic:GetChildren()) do
-				v.Parent = trafficFolder
-			end
-			getfenv().hiddenTraffic:Destroy()
-			getfenv().hiddenTraffic = nil
-		end
-	end
-end
-
--- ESP Function
-local function toggleESP(state)
-	getfenv().espEnabled = state
-	local holder = game.CoreGui:FindFirstChild("ESPHolder") or Instance.new("Folder", game.CoreGui)
-	holder.Name = "ESPHolder"
-	
-	if not state then
-		holder:Destroy()
-		return
-	end
-
-	task.spawn(function()
-		while getfenv().espEnabled do
-			for _, plr in pairs(Players:GetPlayers()) do
-				if plr ~= LocalPlayer and plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") then
-					if not holder:FindFirstChild(plr.Name) then
-						local hl = Instance.new("Highlight")
-						hl.Name = plr.Name
-						hl.Adornee = plr.Character
-						hl.FillColor = Color3.fromRGB(0, 255, 100)
-						hl.OutlineColor = Color3.fromRGB(255, 255, 255)
-						hl.FillTransparency = 0.5
-						hl.OutlineTransparency = 0
-						hl.Parent = holder
-					end
-				end
-			end
-			for _, hl in pairs(holder:GetChildren()) do
-				if not Players:FindFirstChild(hl.Name) then hl:Destroy() end
-			end
-			task.wait(1)
-		end
-	end)
-end
-
--- Car Fly Logic
-local function toggleCarFly(state)
-	getfenv().carFly = state
-	local speed = 200
-	
-	if state then
-		task.spawn(function()
-			local bv = Instance.new("BodyVelocity")
-			
-			while getfenv().carFly do
-				local char = LocalPlayer.Character
-				if char and char:FindFirstChild("Humanoid") and char.Humanoid.SeatPart then
-					local car = char.Humanoid.SeatPart.Parent
-					local root = car and car.PrimaryPart
-					
-					if root then
-						if not root:FindFirstChild("FlyVelocity") then
-							bv = Instance.new("BodyVelocity")
-							bv.Name = "FlyVelocity"
-							bv.MaxForce = Vector3.new(1e9, 1e9, 1e9)
-							bv.Parent = root
-						end
-						
-						local cam = Workspace.CurrentCamera
-						local moveDir = Vector3.zero
-						
-						if UserInputService:IsKeyDown(Enum.KeyCode.W) then moveDir = moveDir + cam.CFrame.LookVector end
-						if UserInputService:IsKeyDown(Enum.KeyCode.S) then moveDir = moveDir - cam.CFrame.LookVector end
-						if UserInputService:IsKeyDown(Enum.KeyCode.A) then moveDir = moveDir - cam.CFrame.RightVector end
-						if UserInputService:IsKeyDown(Enum.KeyCode.D) then moveDir = moveDir + cam.CFrame.RightVector end
-						if UserInputService:IsKeyDown(Enum.KeyCode.Space) then moveDir = moveDir + Vector3.new(0, 1, 0) end
-						if UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) then moveDir = moveDir - Vector3.new(0, 1, 0) end
-						
-						root:FindFirstChild("FlyVelocity").Velocity = moveDir * speed
-						local lookPos = root.Position + cam.CFrame.LookVector
-						root.CFrame = CFrame.new(root.Position, Vector3.new(lookPos.X, root.Position.Y, lookPos.Z))
-					end
-				end
-				RunService.Heartbeat:Wait()
-			end
-			for _, v in pairs(Workspace:GetDescendants()) do if v.Name == "FlyVelocity" then v:Destroy() end end
-		end)
-	else
-		for _, v in pairs(Workspace:GetDescendants()) do if v.Name == "FlyVelocity" then v:Destroy() end end
-	end
-end
-
--- [Hitbox Expander Logic]
-local function toggleHitboxExpander(state)
-	getfenv().hitboxExpanded = state
-	
-	-- Helper to check if a part is a checkpoint
-	local function isCheckpoint(part)
-		if not part:IsA("BasePart") then return false end
-		-- Check common names or if name is a number
-		if part.Name == "Checkpoint" or part.Name == "Ring" or tonumber(part.Name) ~= nil then
-			-- Usually checkpoints are non-collide or transparent
-			if part.Transparency > 0.1 or part.CanCollide == false then
-				return true
-			end
-		end
-		return false
-	end
-
-	if state then
-		-- Expand
-		for _, v in pairs(Workspace:GetDescendants()) do
-			if isCheckpoint(v) then
-				if not originalSizes[v] then originalSizes[v] = v.Size end
-				v.Size = Vector3.new(60, 60, 60)
-				v.Transparency = 0.5 -- Make visible so you know it's working
-				v.Color = Color3.fromRGB(0, 255, 0)
-			end
-		end
-	else
-		-- Restore
-		for part, size in pairs(originalSizes) do
-			if part and part.Parent then
-				part.Size = size
-				part.Transparency = 1 -- Assume invisible originally
-			end
-		end
-		table.clear(originalSizes)
-	end
-end
-
--- [Smart Race Autopilot Logic]
-local function startSmartRace()
-	local char = LocalPlayer.Character
-	if not char or not char:FindFirstChild("Humanoid") or not char.Humanoid.SeatPart then
-		game.StarterGui:SetCore("SendNotification", {Title = "Error"; Text = "Please get in a car first!"; Duration = 3;})
-		return
-	end
-	
-	local car = char.Humanoid.SeatPart.Parent
-	local speed = getfenv().speed or 300
-	
-	-- 1. Scan for the active race container
-	local raceContainer = nil
-	local checkpoints = {}
-	
-	-- Search Workspace for models containing sequential numbers
-	for _, model in pairs(Workspace:GetDescendants()) do
-		if model:IsA("Model") or model:IsA("Folder") then
-			if model:FindFirstChild("1") and model:FindFirstChild("2") then
-				raceContainer = model
-				break
-			end
-		end
-	end
-	
-	if not raceContainer then
-		game.StarterGui:SetCore("SendNotification", {Title = "Auto Race"; Text = "No active race found! (Looked for '1', '2'...)"; Duration = 3;})
-		return
-	end
-	
-	-- 2. Collect and Sort Checkpoints
-	for _, child in pairs(raceContainer:GetChildren()) do
-		local num = tonumber(child.Name)
-		if num then
-			table.insert(checkpoints, {part = child, index = num})
-		end
-	end
-	
-	table.sort(checkpoints, function(a, b) return a.index < b.index end)
-	
-	-- 3. Tween to them
-	ensureGroundPart()
-	game.StarterGui:SetCore("SendNotification", {Title = "Auto Race"; Text = "Race found! Starting autopilot..."; Duration = 3;})
-
-	for _, pt in ipairs(checkpoints) do
-		if not getfenv().auto then break end -- Emergency stop check
-		
-		-- Tween slightly above the checkpoint to avoid clipping
-		local targetPos = pt.part.CFrame * CFrame.new(0, 0, 0) 
-		tweenToPosition(car, targetPos, speed)
-		
-		-- Small wait to ensure registration
-		task.wait(0.1)
-	end
-	
-	game.StarterGui:SetCore("SendNotification", {Title = "Auto Race"; Text = "Race Finished!"; Duration = 3;})
-end
-
--- Car Jump
-UserInputService.InputBegan:Connect(function(input, gpe)
-	if gpe then return end
-	if input.KeyCode == Enum.KeyCode.Space and not getfenv().carFly then
-		local char = LocalPlayer.Character
-		if char and char:FindFirstChild("Humanoid") and char.Humanoid.SeatPart then
-			local car = char.Humanoid.SeatPart.Parent
-			if car and car.PrimaryPart then
-				car.PrimaryPart.AssemblyLinearVelocity = car.PrimaryPart.AssemblyLinearVelocity + Vector3.new(0, 60, 0)
-			end
-		end
-	end
-end)
-
--- [2] ANTI-AFK & HELPERS
-task.spawn(function()
-	for i, v in pairs(Workspace:GetDescendants()) do
-		if v.ClassName == "Model" then
-			task.spawn(function() LocalPlayer:RequestStreamAroundAsync(v.WorldPivot.Position, 3) end)
-			task.wait()
-		end
-	end
-end)
-
-warn("Anti afk launching")
-LocalPlayer.Idled:connect(function()
-	warn("Anti afk launched successfully!!!")
-	game:GetService("VirtualUser"):CaptureController()
-	game:GetService("VirtualUser"):ClickButton2(Vector2.new())
-end)
-
-local function reachedMax(value)
-	local test = 0
-	for i, v in pairs(value:GetDescendants()) do if v:IsA("Seat") then test = test + 1 end end
-	test = test * 5
-	return (value:FindFirstChild("Gifts") and #value.Gifts:GetChildren() == test)
-end
-
-local function hideWorkspaceObjects(plr)
-	if not game.ReplicatedStorage:FindFirstChild("mrbackupfolder") then
-		local folder = Instance.new("Folder", game.ReplicatedStorage)
-		folder.Name = "mrbackupfolder"
-	end
-	for i, v in pairs(Workspace:GetChildren()) do
-		if (v.ClassName == "Model" and not string.find(v.Name, plr.Name) and not string.find(v.Name, plr.DisplayName) and not string.find(v.Name, "Gift") and v.Name ~= "") or
-		   (v.ClassName == "Folder" and not string.find(v.Name, plr.Name) and not string.find(v.Name, plr.DisplayName) and not string.find(v.Name, "Gift") and v.Name ~= "") or
-		   v:IsA("MeshPart") then
-			v.Parent = game.ReplicatedStorage:FindFirstChild("mrbackupfolder")
-		end
-	end
-end
-
-local function restoreWorkspaceObjects()
-	if game.ReplicatedStorage:FindFirstChild("mrbackupfolder") then
-		for i, v in pairs(game.ReplicatedStorage:FindFirstChild("mrbackupfolder"):GetChildren()) do
-			v.Parent = Workspace
-			task.wait()
-		end
-	end
-end
-
-local function ensureGroundPart()
-	if not _G.ooga then
-		local new = Instance.new("Part", Workspace)
-		new.Anchored = true; new.Size = Vector3.new(10000, 10, 10000)
-		_G.ooga = new
-	end
-end
-
-local function tweenToPosition(car, targetCFrame, speed)
-	-- Helper to support both Vector3 and CFrame inputs
-	local targetPos = (typeof(targetCFrame) == "CFrame") and targetCFrame.Position or targetCFrame
-	
-	local plr = LocalPlayer
-	local dist = (plr.Character.HumanoidRootPart.Position - targetPos).magnitude
-	local TweenInfoToUse = TweenInfo.new(dist / speed, Enum.EasingStyle.Linear, Enum.EasingDirection.InOut, 0, false, 0)
-	local TweenValue = Instance.new("CFrameValue")
-	TweenValue.Value = car:GetPrimaryPartCFrame()
-	
-	TweenValue.Changed:Connect(function()
-		local test = TweenValue.Value.Position
-		_G.ooga.Position = test - Vector3.new(0, 14, 0)
-		car:PivotTo(CFrame.new(_G.ooga.Position + Vector3.new(0, 7, 0), targetPos))
-		local velo = car.PrimaryPart.CFrame.LookVector * speed
-		car.PrimaryPart.AssemblyLinearVelocity = velo
-	end)
-	
-	getfenv().tween = TweenService:Create(TweenValue, TweenInfoToUse, {Value = CFrame.new(targetPos)})
-	getfenv().tween:Play()
-	repeat task.wait(0) until getfenv().tween.PlaybackState ~= Enum.PlaybackState.Playing
-end
-
-local function tweenToLocation(car, locations, plr)
-	repeat
-		task.wait()
-		local speed = getfenv().speed or 230
-		getfenv().car = car
-		if getfenv().cancelman then speed = 50 end
-		local pos = locations.WorldPivot + Vector3.new(0, 5, 0)
-		local dist = (plr.Character.HumanoidRootPart.Position - pos.Position).magnitude
-		local TweenInfoToUse = TweenInfo.new(dist / speed, Enum.EasingStyle.Linear, Enum.EasingDirection.InOut, 0, false, 0)
-		local TweenValue = Instance.new("CFrameValue")
-		TweenValue.Value = car:GetPrimaryPartCFrame()
-		
-		TweenValue.Changed:Connect(function()
-			local test = TweenValue.Value.Position
-			if plr:DistanceFromCharacter(pos.Position) > 100 then
-				_G.ooga.Position = test - Vector3.new(0, 14, 0)
-				car:PivotTo(CFrame.new(_G.ooga.Position + Vector3.new(0, 7, 0), pos.Position))
-				local velo = car.PrimaryPart.CFrame.LookVector * speed
-				car.PrimaryPart.AssemblyLinearVelocity = velo
-			elseif plr:DistanceFromCharacter(pos.Position) < 100 and plr:DistanceFromCharacter(pos.Position) > 10 then
-				if not getfenv().cancelman then
-					getfenv().cancelman = true
-					getfenv().tween:Cancel()
-				end
-				local velo = car.PrimaryPart.CFrame.LookVector * 20
-				_G.ooga.Position = test - Vector3.new(0, 8, 0)
-				car:PivotTo(CFrame.new(_G.ooga.Position + Vector3.new(0, 7, 0), Vector3.new(pos.X, car.PrimaryPart.CFrame.Y, pos.Z)))
-				car.PrimaryPart.AssemblyLinearVelocity = velo
-			elseif plr:DistanceFromCharacter(pos.Position) < 5 then
-				local lookat = car.PrimaryPart.CFrame * CFrame.new(0, 0, -10000)
-				car:PivotTo(CFrame.new(Vector3.new(pos.X, _G.ooga.CFrame.Y + 7, pos.Z), lookat.Position))
-				car.PrimaryPart.AssemblyLinearVelocity = Vector3.zero
-			end
-		end)
-		getfenv().tween = TweenService:Create(TweenValue, TweenInfoToUse, {Value = pos})
-		getfenv().tween:Play()
-		repeat task.wait(0) until getfenv().tween.PlaybackState ~= Enum.PlaybackState.Playing
-	until not locations:FindFirstChild("Highlight") or not _G.test
-	getfenv().cancelman = nil
-end
-
--- [4] UI LOAD
-local library = (function()
-    local Library = {}
-    local UIConfig = {
-        MainColor = Color3.fromRGB(25, 25, 25), SecondaryColor = Color3.fromRGB(35, 35, 35),
-        AccentColor = Color3.fromRGB(0, 170, 255), TextColor = Color3.fromRGB(240, 240, 240),
-        Font = Enum.Font.GothamBold, CornerRadius = UDim.new(0, 8)
-    }
-    function Library:CreateWindow(options)
-        local WindowName = options.text or "Script"
-        local ScreenGui = Instance.new("ScreenGui")
-        ScreenGui.Name = "MidnightChasersUI"
-        pcall(function() ScreenGui.Parent = game:GetService("CoreGui") end)
-        if not ScreenGui.Parent then ScreenGui.Parent = LocalPlayer:WaitForChild("PlayerGui") end
-        local MainFrame = Instance.new("Frame", ScreenGui)
-        MainFrame.Name = "MainFrame"; MainFrame.Size = UDim2.fromOffset(220, 300); MainFrame.Position = UDim2.fromScale(0.1, 0.1)
-        MainFrame.BackgroundColor3 = UIConfig.MainColor; MainFrame.BorderSizePixel = 0
-        Instance.new("UICorner", MainFrame).CornerRadius = UIConfig.CornerRadius
-        local Stroke = Instance.new("UIStroke", MainFrame); Stroke.Color = UIConfig.AccentColor; Stroke.Thickness = 1; Stroke.Transparency = 0.5
-        local TitleLabel = Instance.new("TextLabel", MainFrame); TitleLabel.Size = UDim2.new(1, -30, 0, 35); TitleLabel.Position = UDim2.new(0, 10, 0, 0)
-        TitleLabel.BackgroundTransparency = 1; TitleLabel.Text = WindowName; TitleLabel.TextColor3 = UIConfig.AccentColor
-        TitleLabel.TextSize = 16; TitleLabel.Font = UIConfig.Font; TitleLabel.TextXAlignment = Enum.TextXAlignment.Left
-        
-        -- Dragging
-        local dragging, dragStart, startPos
-        MainFrame.InputBegan:Connect(function(input)
-            if input.UserInputType == Enum.UserInputType.MouseButton1 then
-                dragging = true; dragStart = input.Position; startPos = MainFrame.Position
-            end
-        end)
-        UserInputService.InputChanged:Connect(function(input)
-            if input.UserInputType == Enum.UserInputType.MouseMovement and dragging then
-                local delta = input.Position - dragStart
-                MainFrame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
-            end
-        end)
-        UserInputService.InputEnded:Connect(function(input) if input.UserInputType == Enum.UserInputType.MouseButton1 then dragging = false end end)
-
-        local Container = Instance.new("Frame", MainFrame); Container.Name = "Container"; Container.Size = UDim2.new(1, -20, 1, -40)
-        Container.Position = UDim2.new(0, 10, 0, 35); Container.BackgroundTransparency = 1; Container.ClipsDescendants = true
-        local UIList = Instance.new("UIListLayout", Container); UIList.Padding = UDim.new(0, 6); UIList.SortOrder = Enum.SortOrder.LayoutOrder
-        local function Resize() TweenService:Create(MainFrame, TweenInfo.new(0.3), {Size = UDim2.fromOffset(220, UIList.AbsoluteContentSize.Y + 50)}):Play() end
-        UIList:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(Resize)
-        local Elements = {}
-        function Elements:AddBox(text, callback)
-            local BoxFrame = Instance.new("Frame", Container); BoxFrame.Size = UDim2.new(1, 0, 0, 35); BoxFrame.BackgroundColor3 = UIConfig.SecondaryColor
-            Instance.new("UICorner", BoxFrame).CornerRadius = UDim.new(0, 6)
-            local TextBox = Instance.new("TextBox", BoxFrame); TextBox.Size = UDim2.new(1, 0, 1, 0); TextBox.BackgroundTransparency = 1
-            TextBox.PlaceholderText = text; TextBox.TextColor3 = UIConfig.TextColor; TextBox.Font = Enum.Font.GothamMedium; TextBox.TextSize = 14
-            TextBox.FocusLost:Connect(function() pcall(callback, TextBox, true) end); Resize()
+    local MainFrame = Instance.new("Frame", ScreenGui)
+    MainFrame.Name = "MainFrame"; MainFrame.Size = UDim2.fromOffset(240, 320); MainFrame.Position = UDim2.fromScale(0.1, 0.1)
+    MainFrame.BackgroundColor3 = UIConfig.MainColor; MainFrame.BorderSizePixel = 0
+    Instance.new("UICorner", MainFrame).CornerRadius = UIConfig.CornerRadius
+    local Stroke = Instance.new("UIStroke", MainFrame); Stroke.Color = UIConfig.AccentColor; Stroke.Thickness = 1; Stroke.Transparency = 0.5
+    
+    -- Dragging
+    local dragging, dragStart, startPos
+    MainFrame.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            dragging = true; dragStart = input.Position; startPos = MainFrame.Position
         end
-        function Elements:AddToggle(text, callback)
-            local isEnabled = false
-            local ToggleFrame = Instance.new("TextButton", Container); ToggleFrame.Text = ""; ToggleFrame.Size = UDim2.new(1, 0, 0, 30); ToggleFrame.BackgroundTransparency = 1
-            local Label = Instance.new("TextLabel", ToggleFrame); Label.Text = text; Label.Size = UDim2.new(0.7, 0, 1, 0); Label.BackgroundTransparency = 1
-            Label.TextColor3 = UIConfig.TextColor; Label.Font = Enum.Font.GothamMedium; Label.TextSize = 14; Label.TextXAlignment = Enum.TextXAlignment.Left
-            local SwitchBg = Instance.new("Frame", ToggleFrame); SwitchBg.Size = UDim2.new(0, 40, 0, 20); SwitchBg.Position = UDim2.new(1, -45, 0.5, 0); SwitchBg.AnchorPoint = Vector2.new(0, 0.5); SwitchBg.BackgroundColor3 = Color3.fromRGB(50,50,50)
-            Instance.new("UICorner", SwitchBg).CornerRadius = UDim.new(1, 0)
-            local Circle = Instance.new("Frame", SwitchBg); Circle.Size = UDim2.new(0, 16, 0, 16); Circle.Position = UDim2.new(0, 2, 0.5, 0); Circle.AnchorPoint = Vector2.new(0, 0.5); Circle.BackgroundColor3 = Color3.fromRGB(200,200,200)
-            Instance.new("UICorner", Circle).CornerRadius = UDim.new(1, 0)
-            ToggleFrame.MouseButton1Click:Connect(function()
-                isEnabled = not isEnabled; callback(isEnabled)
-                local tPos = isEnabled and UDim2.new(1, -18, 0.5, 0) or UDim2.new(0, 2, 0.5, 0)
-                local tCol = isEnabled and UIConfig.AccentColor or Color3.fromRGB(50,50,50)
-                TweenService:Create(Circle, TweenInfo.new(0.2), {Position = tPos}):Play(); TweenService:Create(SwitchBg, TweenInfo.new(0.2), {BackgroundColor3 = tCol}):Play()
-            end); Resize()
+    end)
+    UserInputService.InputChanged:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseMovement and dragging then
+            local delta = input.Position - dragStart
+            MainFrame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
         end
-        function Elements:AddButton(text, callback)
-            local Btn = Instance.new("TextButton", Container); Btn.Size = UDim2.new(1, 0, 0, 30); Btn.BackgroundColor3 = UIConfig.SecondaryColor
-            Btn.Text = text; Btn.TextColor3 = UIConfig.TextColor; Btn.Font = Enum.Font.GothamMedium; Btn.TextSize = 14
-            Instance.new("UICorner", Btn).CornerRadius = UDim.new(0, 6)
-            Btn.MouseButton1Click:Connect(function() 
-                TweenService:Create(Btn, TweenInfo.new(0.1), {BackgroundColor3 = UIConfig.AccentColor}):Play()
-                task.wait(0.1)
-                TweenService:Create(Btn, TweenInfo.new(0.3), {BackgroundColor3 = UIConfig.SecondaryColor}):Play()
-                callback() 
-            end); Resize()
-        end
-        Resize(); return Elements
+    end)
+    UserInputService.InputEnded:Connect(function(input) if input.UserInputType == Enum.UserInputType.MouseButton1 then dragging = false end end)
+
+    local TitleLabel = Instance.new("TextLabel", MainFrame); TitleLabel.Size = UDim2.new(1, -10, 0, 35); TitleLabel.Position = UDim2.new(0, 10, 0, 0)
+    TitleLabel.BackgroundTransparency = 1; TitleLabel.Text = WindowName; TitleLabel.TextColor3 = UIConfig.AccentColor
+    TitleLabel.TextSize = 16; TitleLabel.Font = UIConfig.Font; TitleLabel.TextXAlignment = Enum.TextXAlignment.Left
+
+    local Container = Instance.new("ScrollingFrame", MainFrame); Container.Name = "Container"; Container.Size = UDim2.new(1, -10, 1, -45)
+    Container.Position = UDim2.new(0, 5, 0, 40); Container.BackgroundTransparency = 1; Container.ScrollBarThickness = 2
+    local UIList = Instance.new("UIListLayout", Container); UIList.Padding = UDim.new(0, 6); UIList.SortOrder = Enum.SortOrder.LayoutOrder
+    
+    local Elements = {}
+    
+    function Elements:AddSection(text)
+        local SecLabel = Instance.new("TextLabel", Container)
+        SecLabel.Size = UDim2.new(1, 0, 0, 20)
+        SecLabel.BackgroundTransparency = 1
+        SecLabel.Text = "- " .. text .. " -"
+        SecLabel.TextColor3 = Color3.fromRGB(150, 150, 150)
+        SecLabel.Font = Enum.Font.Gotham; SecLabel.TextSize = 12
     end
-    return Library
-end)()
 
-local example = library:CreateWindow({ text = "MCCheat - BY POPOFF" })
+    function Elements:AddBox(text, callback)
+        local BoxFrame = Instance.new("Frame", Container); BoxFrame.Size = UDim2.new(1, -5, 0, 35); BoxFrame.BackgroundColor3 = UIConfig.SecondaryColor
+        Instance.new("UICorner", BoxFrame).CornerRadius = UDim.new(0, 6)
+        local TextBox = Instance.new("TextBox", BoxFrame); TextBox.Size = UDim2.new(1, 0, 1, 0); TextBox.BackgroundTransparency = 1
+        TextBox.PlaceholderText = text; TextBox.TextColor3 = UIConfig.TextColor; TextBox.Font = Enum.Font.GothamMedium; TextBox.TextSize = 14
+        TextBox.FocusLost:Connect(function() pcall(callback, TextBox, true) end)
+        Container.CanvasSize = UDim2.new(0, 0, 0, UIList.AbsoluteContentSize.Y + 20)
+    end
 
--- == MAIN FEATURES ==
-example:AddBox("Set Speed (Def: 230)", function(object, focus)
-	if focus then getfenv().speed = tonumber(object.Text) end
+    function Elements:AddToggle(text, callback)
+        local isEnabled = false
+        local Btn = Instance.new("TextButton", Container); Btn.Size = UDim2.new(1, -5, 0, 30); Btn.BackgroundTransparency = 1; Btn.Text = ""
+        local Label = Instance.new("TextLabel", Btn); Label.Text = text; Label.Size = UDim2.new(0.7, 0, 1, 0); Label.BackgroundTransparency = 1
+        Label.TextColor3 = UIConfig.TextColor; Label.Font = Enum.Font.GothamMedium; Label.TextSize = 14; Label.TextXAlignment = Enum.TextXAlignment.Left
+        local Switch = Instance.new("Frame", Btn); Switch.Size = UDim2.new(0, 40, 0, 20); Switch.Position = UDim2.new(1, -45, 0.5, 0); Switch.AnchorPoint = Vector2.new(0, 0.5); Switch.BackgroundColor3 = Color3.fromRGB(50,50,50)
+        Instance.new("UICorner", Switch).CornerRadius = UDim.new(1, 0)
+        local Circle = Instance.new("Frame", Switch); Circle.Size = UDim2.new(0, 16, 0, 16); Circle.Position = UDim2.new(0, 2, 0.5, 0); Circle.AnchorPoint = Vector2.new(0, 0.5); Circle.BackgroundColor3 = Color3.fromRGB(200,200,200)
+        Instance.new("UICorner", Circle).CornerRadius = UDim.new(1, 0)
+        
+        Btn.MouseButton1Click:Connect(function()
+            isEnabled = not isEnabled; callback(isEnabled)
+            local tPos = isEnabled and UDim2.new(1, -18, 0.5, 0) or UDim2.new(0, 2, 0.5, 0)
+            local tCol = isEnabled and UIConfig.AccentColor or Color3.fromRGB(50,50,50)
+            TweenService:Create(Circle, TweenInfo.new(0.2), {Position = tPos}):Play()
+            TweenService:Create(Switch, TweenInfo.new(0.2), {BackgroundColor3 = tCol}):Play()
+        end)
+        Container.CanvasSize = UDim2.new(0, 0, 0, UIList.AbsoluteContentSize.Y + 20)
+    end
+
+    function Elements:AddButton(text, callback)
+        local Btn = Instance.new("TextButton", Container); Btn.Size = UDim2.new(1, -5, 0, 30); Btn.BackgroundColor3 = UIConfig.SecondaryColor
+        Btn.Text = text; Btn.TextColor3 = UIConfig.TextColor; Btn.Font = Enum.Font.GothamMedium; Btn.TextSize = 14
+        Instance.new("UICorner", Btn).CornerRadius = UDim.new(0, 6)
+        Btn.MouseButton1Click:Connect(function()
+            TweenService:Create(Btn, TweenInfo.new(0.1), {BackgroundColor3 = UIConfig.AccentColor}):Play()
+            task.wait(0.1)
+            TweenService:Create(Btn, TweenInfo.new(0.3), {BackgroundColor3 = UIConfig.SecondaryColor}):Play()
+            callback() 
+        end)
+        Container.CanvasSize = UDim2.new(0, 0, 0, UIList.AbsoluteContentSize.Y + 20)
+    end
+
+    UIList:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+        Container.CanvasSize = UDim2.new(0, 0, 0, UIList.AbsoluteContentSize.Y + 20)
+    end)
+
+    return Elements
+end
+
+-- [2] UTILITY FUNCTIONS
+
+-- Helper: Ensure Ground Platform (Prevents falling while tweening)
+local function ensureGroundPart()
+    if not _G.ooga or not _G.ooga.Parent then
+        local new = Instance.new("Part", Workspace)
+        new.Name = "TweenPlatform"
+        new.Anchored = true
+        new.Size = Vector3.new(10000, 2, 10000)
+        new.Transparency = 1 -- Invisible
+        new.CanCollide = false -- Don't hit other things
+        _G.ooga = new
+    end
+end
+
+-- Helper: Tween Function
+local function tweenCar(targetPos)
+    local char = LocalPlayer.Character
+    if not char or not char:FindFirstChild("Humanoid") or not char.Humanoid.SeatPart then return end
+    
+    local car = char.Humanoid.SeatPart.Parent
+    if not car or not car.PrimaryPart then return end
+    
+    ensureGroundPart()
+    local speed = getfenv().speed or 250
+    local dist = (car.PrimaryPart.Position - targetPos).Magnitude
+    local info = TweenInfo.new(dist / speed, Enum.EasingStyle.Linear)
+    
+    local tweenValue = Instance.new("CFrameValue")
+    tweenValue.Value = car:GetPrimaryPartCFrame()
+    
+    tweenValue.Changed:Connect(function()
+        if not car.Parent then tweenValue:Destroy() return end
+        _G.ooga.Position = tweenValue.Value.Position - Vector3.new(0, 10, 0)
+        car:PivotTo(CFrame.new(tweenValue.Value.Position, targetPos))
+        car.PrimaryPart.AssemblyLinearVelocity = car.PrimaryPart.CFrame.LookVector * speed
+    end)
+    
+    local tween = TweenService:Create(tweenValue, info, {Value = CFrame.new(targetPos)})
+    table.insert(activeTweens, tween)
+    tween:Play()
+    tween.Completed:Wait()
+    tweenValue:Destroy()
+end
+
+-- Feature: Traffic Clear
+local function toggleTraffic(state)
+    local trafficFolder = Workspace:FindFirstChild("NPCVehicles") and Workspace.NPCVehicles:FindFirstChild("Vehicles")
+    if not trafficFolder then return end
+
+    if state then
+        if not getfenv().hiddenTraffic then
+            getfenv().hiddenTraffic = Instance.new("Folder", game.ReplicatedStorage)
+            getfenv().hiddenTraffic.Name = "HiddenNPCVehicles"
+        end
+        for _, v in pairs(trafficFolder:GetChildren()) do
+            v.Parent = getfenv().hiddenTraffic
+        end
+        getfenv().trafficConnection = trafficFolder.ChildAdded:Connect(function(child)
+            task.wait()
+            if getfenv().hiddenTraffic then child.Parent = getfenv().hiddenTraffic end
+        end)
+    else
+        if getfenv().trafficConnection then getfenv().trafficConnection:Disconnect() end
+        if getfenv().hiddenTraffic then
+            for _, v in pairs(getfenv().hiddenTraffic:GetChildren()) do
+                v.Parent = trafficFolder
+            end
+            getfenv().hiddenTraffic:Destroy()
+            getfenv().hiddenTraffic = nil
+        end
+    end
+end
+
+-- Feature: Car Fly (Improved with Stabilizer)
+local function toggleCarFly(state)
+    getfenv().carFly = state
+    local speed = 250
+    
+    if state then
+        task.spawn(function()
+            local bv, bg
+            while getfenv().carFly do
+                local char = LocalPlayer.Character
+                if char and char:FindFirstChild("Humanoid") and char.Humanoid.SeatPart then
+                    local car = char.Humanoid.SeatPart.Parent
+                    local root = car and car.PrimaryPart
+                    
+                    if root then
+                        -- BodyVelocity
+                        if not root:FindFirstChild("FlyVelocity") then
+                            bv = Instance.new("BodyVelocity")
+                            bv.Name = "FlyVelocity"; bv.MaxForce = Vector3.new(1e9, 1e9, 1e9); bv.Parent = root
+                        end
+                        -- BodyGyro (Stabilizer)
+                        if not root:FindFirstChild("FlyGyro") then
+                            bg = Instance.new("BodyGyro")
+                            bg.Name = "FlyGyro"; bg.MaxTorque = Vector3.new(1e9, 1e9, 1e9); bg.P = 3000; bg.Parent = root
+                        end
+                        
+                        local cam = Workspace.CurrentCamera
+                        local moveDir = Vector3.zero
+                        
+                        if UserInputService:IsKeyDown(Enum.KeyCode.W) then moveDir = moveDir + cam.CFrame.LookVector end
+                        if UserInputService:IsKeyDown(Enum.KeyCode.S) then moveDir = moveDir - cam.CFrame.LookVector end
+                        if UserInputService:IsKeyDown(Enum.KeyCode.A) then moveDir = moveDir - cam.CFrame.RightVector end
+                        if UserInputService:IsKeyDown(Enum.KeyCode.D) then moveDir = moveDir + cam.CFrame.RightVector end
+                        if UserInputService:IsKeyDown(Enum.KeyCode.Space) then moveDir = moveDir + Vector3.new(0, 1, 0) end
+                        if UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) then moveDir = moveDir - Vector3.new(0, 1, 0) end
+                        
+                        root.FlyVelocity.Velocity = moveDir * speed
+                        root.FlyGyro.CFrame = cam.CFrame
+                    end
+                else
+                    -- Cleanup if exited car
+                    if bv then bv:Destroy() bv = nil end
+                    if bg then bg:Destroy() bg = nil end
+                end
+                RunService.Heartbeat:Wait()
+            end
+            -- Final Cleanup
+            for _, v in pairs(Workspace:GetDescendants()) do 
+                if v.Name == "FlyVelocity" or v.Name == "FlyGyro" then v:Destroy() end 
+            end
+        end)
+    end
+end
+
+-- Feature: Hitbox Expander
+local function toggleHitboxExpander(state)
+    getfenv().hitboxExpanded = state
+    local function isTarget(part)
+        if not part:IsA("BasePart") then return false end
+        if part.Name == "Checkpoint" or part.Name == "Ring" or tonumber(part.Name) ~= nil or part:FindFirstChild("TouchInterest") then
+            if part.Transparency > 0.1 or not part.CanCollide then return true end
+        end
+        return false
+    end
+    if state then
+        for _, v in pairs(Workspace:GetDescendants()) do
+            if isTarget(v) then
+                if not originalSizes[v] then originalSizes[v] = v.Size end
+                v.Size = Vector3.new(80, 80, 80)
+                v.Transparency = 0.7
+                v.Color = Color3.fromRGB(0, 255, 100)
+            end
+        end
+    else
+        for part, size in pairs(originalSizes) do
+            if part.Parent then part.Size = size; part.Transparency = 1 end
+        end
+        table.clear(originalSizes)
+    end
+end
+
+-- Feature: Teleport to Player
+local function teleportToPlayer(playerName)
+    local target = Players:FindFirstChild(playerName)
+    local char = LocalPlayer.Character
+    if target and target.Character and target.Character.PrimaryPart and char and char.PrimaryPart then
+        local car = char.Humanoid.SeatPart and char.Humanoid.SeatPart.Parent
+        local tCFrame = target.Character.PrimaryPart.CFrame * CFrame.new(0, 5, 0)
+        
+        if car then
+            car:PivotTo(tCFrame)
+            car.PrimaryPart.AssemblyLinearVelocity = Vector3.zero
+        else
+            char:PivotTo(tCFrame)
+        end
+    end
+end
+
+-- Feature: Smart Race Logic
+local function runSmartRace()
+    local char = LocalPlayer.Character
+    if not char or not char.Humanoid.SeatPart then
+        game.StarterGui:SetCore("SendNotification", {Title = "Error"; Text = "Enter a car first!"; Duration = 3})
+        return
+    end
+
+    game.StarterGui:SetCore("SendNotification", {Title = "Auto Race"; Text = "Scanning for race..."; Duration = 3})
+    
+    local raceContainer = nil
+    local bestCount = 0
+    
+    -- Find the folder with the most numbers (likely the race)
+    for _, model in pairs(Workspace:GetDescendants()) do
+        if model:IsA("Model") or model:IsA("Folder") then
+            local count = 0
+            if model:FindFirstChild("1") then count = count + 1 end
+            if model:FindFirstChild("2") then count = count + 1 end
+            if model:FindFirstChild("3") then count = count + 1 end
+            if count >= 2 and count > bestCount then
+                raceContainer = model
+                bestCount = count
+            end
+        end
+    end
+    
+    if not raceContainer then
+        game.StarterGui:SetCore("SendNotification", {Title = "Error"; Text = "No race found."; Duration = 3})
+        return 
+    end
+
+    local checkpoints = {}
+    for _, child in pairs(raceContainer:GetChildren()) do
+        local num = tonumber(child.Name)
+        if num then table.insert(checkpoints, {part = child, index = num}) end
+    end
+    table.sort(checkpoints, function(a, b) return a.index < b.index end)
+
+    repeat
+        for _, pt in ipairs(checkpoints) do
+            if not getfenv().autoRace then break end
+            tweenCar(pt.part.Position)
+            task.wait(0.05)
+        end
+        -- If loop is on, teleport back to start (1)
+        if getfenv().autoRace and getfenv().loopRace and checkpoints[1] then
+            task.wait(0.5)
+            local car = char.Humanoid.SeatPart.Parent
+            car:PivotTo(checkpoints[1].part.CFrame)
+            task.wait(1)
+        end
+    until not getfenv().loopRace or not getfenv().autoRace
+    
+    game.StarterGui:SetCore("SendNotification", {Title = "Finished"; Text = "Race Sequence Ended"; Duration = 3})
+end
+
+-- [3] UI CONSTRUCTION
+local UI = Library:CreateWindow({text = "Midnight Chasers - Remastered"})
+
+UI:AddSection("Farming")
+
+UI:AddBox("Tween Speed (Def: 250)", function(obj)
+    getfenv().speed = tonumber(obj.Text) or 250
 end)
 
-example:AddButton("Auto Win Race (Smart Tween)", function()
-	-- Uses the Smart Tween logic to find the track
-	getfenv().auto = true -- Enable auto flag for the tween loop
-	startSmartRace()
-	getfenv().auto = false
+UI:AddToggle("Auto Race (Smart)", function(state)
+    getfenv().autoRace = state
+    if state then
+        task.spawn(runSmartRace)
+    else
+        for _, t in pairs(activeTweens) do t:Cancel() end
+        table.clear(activeTweens)
+    end
 end)
 
-example:AddToggle("Hitbox Expander", function(state)
-	toggleHitboxExpander(state)
+UI:AddToggle("Loop Race?", function(state)
+    getfenv().loopRace = state
 end)
 
-example:AddToggle("Auto Farm (Legacy)", function(state)
-	getfenv().auto = state
-	if state then
-		hideWorkspaceObjects(LocalPlayer)
-		task.wait()
-	else
-		if getfenv().tween then getfenv().tween:Cancel() end
-		restoreWorkspaceObjects()
-	end
-	
-	while getfenv().auto do
-		local chr = LocalPlayer.Character
-		local hum = chr.Humanoid
-		local car = hum.SeatPart and hum.SeatPart.Parent
-		if car then
-			getfenv().car = car
-			ensureGroundPart()
-			car.PrimaryPart = car.Body:FindFirstChild("#Weight")
-			
-			local frames = {
-				CFrame.new(105, -26, 7965), CFrame.new(2751, -26, 3694),
-				CFrame.new(-8821, -26, 2042), CFrame.new(-6408, -26, -727),
-				CFrame.new(-6099, -26, -1027), CFrame.new(-6066, -26, 493),
-				CFrame.new(132, -26, 15), CFrame.new(-7692, -26, -4668),
-				CFrame.new(4887, -26, 1222)
-			}
-			for i, v in pairs(frames) do
-				if not getfenv().auto then break end
-				local speed = getfenv().speed or 300
-				tweenToPosition(car, v.Position + Vector3.new(0, 5, 0), speed)
-			end
-		else
-			task.wait(1)
-		end
-	end
+UI:AddToggle("Auto Deliver (Gifts)", function(state)
+    getfenv().autoDeliver = state
+    task.spawn(function()
+        while getfenv().autoDeliver do
+            local char = LocalPlayer.Character
+            if char and char:FindFirstChild("Humanoid") and char.Humanoid.SeatPart then
+                -- Find Highlighted objects or specific pickup points
+                local target = nil
+                for _, v in pairs(Workspace:GetDescendants()) do
+                    if v:IsA("Highlight") and v.Parent then
+                        target = v.Parent
+                        break
+                    end
+                end
+                
+                if not target and Workspace:FindFirstChild("GiftPickup") then
+                    target = Workspace.GiftPickup
+                end
+
+                if target then
+                    tweenCar(target.WorldPivot.Position)
+                    task.wait(0.5)
+                end
+            end
+            task.wait(1)
+        end
+    end)
 end)
 
-example:AddToggle("Auto Deliver [Event]", function(state)
-	_G.test = state
-	if state then
-		hideWorkspaceObjects(LocalPlayer)
-	else
-		if getfenv().tween then getfenv().tween:Cancel() end
-		restoreWorkspaceObjects()
-	end
+UI:AddSection("Vehicle Mods")
 
-	while _G.test do
-		task.wait()
-		ensureGroundPart()
-		local chr = LocalPlayer.Character
-		if not chr or not chr:FindFirstChild("Humanoid") then task.wait() continue end
-		local seat = chr.Humanoid.SeatPart
-		if not seat then task.wait() continue end
-		
-		getfenv().car = seat.Parent
-		getfenv().car.PrimaryPart = getfenv().car.Body:FindFirstChild("#Weight")
-
-		local locations
-		local maxdistance = math.huge
-		for i, v in pairs(Workspace:GetChildren()) do
-			if v.Name == "" and v:FindFirstChild("Highlight") then
-				local dist = (chr.PrimaryPart.Position - v.WorldPivot.Position).magnitude
-				if dist < maxdistance then
-					maxdistance = dist
-					locations = v
-				end
-			end
-		end
-
-		if locations then
-			tweenToLocation(getfenv().car, locations, LocalPlayer)
-		elseif Workspace:FindFirstChild("GiftPickup") then
-			repeat
-				task.wait()
-				getfenv().car.PrimaryPart.AssemblyLinearVelocity = Vector3.zero
-				getfenv().car:PivotTo(CFrame.new(Workspace.GiftPickup.WorldPivot.Position) + Vector3.new(0, 5, 0))
-			until reachedMax(getfenv().car)
-		end
-	end
+UI:AddToggle("Car Fly (W/A/S/D)", function(state)
+    toggleCarFly(state)
 end)
 
--- == FUN / UTILITY ==
-example:AddToggle("Disable NPC Traffic", function(state)
-	clearTraffic(state)
+UI:AddButton("Car Jump (Force)", function()
+    local char = LocalPlayer.Character
+    if char and char.Humanoid.SeatPart then
+        char.Humanoid.SeatPart.Parent.PrimaryPart.AssemblyLinearVelocity = Vector3.new(0, 100, 0)
+    end
 end)
 
-example:AddToggle("Car Fly (W/A/S/D)", function(state)
-	toggleCarFly(state)
+UI:AddToggle("Disable Traffic", function(state)
+    toggleTraffic(state)
 end)
 
-example:AddToggle("Player ESP", function(state)
-	toggleESP(state)
+UI:AddToggle("Hitbox Expander", function(state)
+    toggleHitboxExpander(state)
 end)
 
-example:AddToggle("Full Bright", function(state)
-	getfenv().fullBright = state
-	if state then
-		task.spawn(function()
-			while getfenv().fullBright do
-				Lighting.Brightness = 2
-				Lighting.ClockTime = 14
-				Lighting.GlobalShadows = false
-				Lighting.OutdoorAmbient = Color3.fromRGB(128, 128, 128)
-				task.wait(1)
-			end
-		end)
-	else
-		Lighting.Brightness = 1
-		Lighting.GlobalShadows = true
-		Lighting.ClockTime = 0 
-	end
+UI:AddSection("Player")
+
+UI:AddBox("Teleport to Player (Name)", function(obj)
+    teleportToPlayer(obj.Text)
 end)
 
-example:AddButton("Car Jump (Spacebar)", function()
-	game.StarterGui:SetCore("SendNotification", {Title = "Car Jump"; Text = "Press SPACEBAR in car to jump!"; Duration = 3;})
+UI:AddToggle("Full Bright", function(state)
+    if state then
+        Lighting.ClockTime = 14
+        Lighting.Brightness = 2
+        Lighting.GlobalShadows = false
+    else
+        Lighting.ClockTime = 0
+        Lighting.Brightness = 1
+        Lighting.GlobalShadows = true
+    end
 end)
 
--- == RESET ==
-example:AddButton("STOP ALL / RESET", function()
-	getfenv().auto = false
-	_G.test = false
-	getfenv().carFly = false
-	getfenv().espEnabled = false
-	getfenv().fullBright = false
-	
-	if getfenv().tween then getfenv().tween:Cancel() end
-	getfenv().cancelman = nil
-	restoreWorkspaceObjects()
-	clearTraffic(false)
-	toggleCarFly(false)
-	toggleESP(false)
-	toggleHitboxExpander(false) -- Disable hitbox
-	
-	Lighting.ClockTime = 0 
-	Lighting.GlobalShadows = true
-
-	if _G.ooga then _G.ooga:Destroy(); _G.ooga = nil end
-	
-	local chr = LocalPlayer.Character
-	if chr and chr:FindFirstChild("Humanoid") and chr.Humanoid.SeatPart then
-		local car = chr.Humanoid.SeatPart.Parent
-		if car and car.PrimaryPart then
-			car.PrimaryPart.AssemblyLinearVelocity = Vector3.zero
-		end
-	end
-	
-	warn("RESET: All systems restored.")
+UI:AddButton("Destroy GUI / STOP", function()
+    getfenv().autoRace = false
+    getfenv().autoDeliver = false
+    getfenv().carFly = false
+    toggleTraffic(false)
+    toggleHitboxExpander(false)
+    for _, t in pairs(activeTweens) do t:Cancel() end
+    if _G.ooga then _G.ooga:Destroy() end
+    if CoreGui:FindFirstChild("MidnightChasersUI_Remastered") then
+        CoreGui.MidnightChasersUI_Remastered:Destroy()
+    elseif LocalPlayer.PlayerGui:FindFirstChild("MidnightChasersUI_Remastered") then
+        LocalPlayer.PlayerGui.MidnightChasersUI_Remastered:Destroy()
+    end
 end)
+
+-- [4] Anti-AFK
+local Vu = game:GetService("VirtualUser")
+LocalPlayer.Idled:connect(function()
+    Vu:Button2Down(Vector2.new(0,0), workspace.CurrentCamera.CFrame)
+    task.wait(1)
+    Vu:Button2Up(Vector2.new(0,0), workspace.CurrentCamera.CFrame)
+end)
+
+warn("Midnight Chasers Remastered Loaded")
