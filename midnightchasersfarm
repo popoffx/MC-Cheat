@@ -1,4 +1,4 @@
--- // MIDNIGHT CHASERS FARM & UTILITY - ULTIMATE EDITION BY POPOFF (HANDLING REMASTER) \\ --
+-- // MIDNIGHT CHASERS FARM & UTILITY - ULTIMATE EDITION (GROUNDED V3) \\ --
 
 -- [0] VARIABLES & SERVICES
 local Players = game:GetService("Players")
@@ -17,7 +17,7 @@ getfenv().espEnabled = false
 getfenv().fullBright = false
 getfenv().hitboxExpanded = false
 
--- New Variables for Speed/Accel
+-- Physics Variables
 getfenv().driveSpeedLimit = 0     -- The speed you want to force
 getfenv().superAccel = false      -- The acceleration toggle
 
@@ -253,7 +253,7 @@ UserInputService.InputBegan:Connect(function(input, gpe)
 	end
 end)
 
--- [NEW] PHYSICS LOOP: Handling, Brakes, Speed
+-- [NEW] PHYSICS CONTROLLER V3 (STABLE & GROUNDED)
 RunService.Heartbeat:Connect(function()
     local char = LocalPlayer.Character
     if char and char:FindFirstChild("Humanoid") and char.Humanoid.SeatPart then
@@ -263,58 +263,37 @@ RunService.Heartbeat:Connect(function()
         
         if not root then return end
 
-        -- Ground Check (prevents flying)
-        local rayOrigin = root.Position
-        local rayDirection = Vector3.new(0, -15, 0) 
-        local raycastParams = RaycastParams.new()
-        raycastParams.FilterDescendantsInstances = {car, char}
-        raycastParams.FilterType = Enum.RaycastFilterType.Exclude
-        local rayResult = Workspace:Raycast(rayOrigin, rayDirection, raycastParams)
-        local isGrounded = (rayResult ~= nil)
+        local vel = root.AssemblyLinearVelocity
+        local speedVal = tonumber(getfenv().driveSpeedLimit) or 0
+        local accelActive = getfenv().superAccel
+        
+        -- Check Input
+        local pressingW = UserInputService:IsKeyDown(Enum.KeyCode.W)
 
-        local currentVel = root.AssemblyLinearVelocity
-        local lookVector = root.CFrame.LookVector
-        local rightVector = root.CFrame.RightVector
-
-        -- [A] ENHANCED BRAKING
-        if UserInputService:IsKeyDown(Enum.KeyCode.S) then
-            -- Active Braking: Lerp velocity quickly towards zero to simulate powerful brakes
-            root.AssemblyLinearVelocity = currentVel:Lerp(Vector3.zero, 0.15)
-            return -- Skip acceleration logic while braking
+        -- 1. SUPER ACCELERATION (Additive, No Cap)
+        if accelActive and pressingW then
+            -- Simply adds force to where you are looking.
+            -- Using a multiplier based on mass for consistency.
+            root.AssemblyLinearVelocity = root.AssemblyLinearVelocity + (root.CFrame.LookVector * 2)
         end
 
-        -- [B] DRIVE & STEERING
-        if UserInputService:IsKeyDown(Enum.KeyCode.W) and isGrounded then
+        -- 2. FORCE SPEED (Anti-Fly Logic)
+        if speedVal > 0 and pressingW then
+            -- A. Calculate "Flat" Direction (Remove Y Axis)
+            local lv = root.CFrame.LookVector
+            local flatDir = Vector3.new(lv.X, 0, lv.Z).Unit -- Normalize to length 1
             
-            -- 1. Super Acceleration (Smooth)
-            if getfenv().superAccel and currentVel.Magnitude < 200 then
-                 -- Add gentle boost vector
-                 root.AssemblyLinearVelocity = root.AssemblyLinearVelocity + (lookVector * 6)
-            end
-
-            -- 2. Force Drive Speed (With Traction Control)
-            local targetSpeed = tonumber(getfenv().driveSpeedLimit)
-            if targetSpeed and targetSpeed > 0 then
-                
-                -- Traction Control: Calculate sideways sliding amount
-                local driftVelocity = currentVel:Dot(rightVector)
-                
-                -- Drift Correction Vector (Counteract the slide)
-                -- 0.8 means we remove 80% of the drift, keeping steering tight but not robotic
-                local correction = rightVector * driftVelocity * 0.8
-                
-                -- Desired Velocity: Where we are facing * Speed
-                local desiredForward = lookVector * targetSpeed
-                
-                -- Maintain Y velocity (Gravity)
-                local newVelocity = Vector3.new(desiredForward.X, currentVel.Y - 1, desiredForward.Z)
-                
-                -- Apply: Target - Slide + Gravity
-                local finalVelocity = newVelocity - correction
-                
-                -- Smooth Application (Lerp) to avoid jitter
-                root.AssemblyLinearVelocity = currentVel:Lerp(finalVelocity, 0.1)
-            end
+            -- B. Determine Goal Velocity
+            local goalVel = flatDir * speedVal
+            
+            -- C. Apply
+            -- We keep the current Y velocity (gravity), but apply strict X/Z speed.
+            -- We add -1 to Y to act as "Downforce" so it sticks to the road.
+            root.AssemblyLinearVelocity = Vector3.new(goalVel.X, vel.Y - 1, goalVel.Z)
+            
+            -- D. Stabilizer (Prevents Spinning Out)
+            -- If the car is turning too fast, dampen the rotation slightly
+            root.AssemblyAngularVelocity = root.AssemblyAngularVelocity:Lerp(Vector3.zero, 0.05)
         end
     end
 end)
@@ -537,7 +516,7 @@ example:AddBox("Force Drive Speed (e.g. 400)", function(object, focus)
 end)
 
 -- [NEW] Super Acceleration
-example:AddToggle("Super Acceleration (0-100)", function(state)
+example:AddToggle("Super Acceleration", function(state)
     getfenv().superAccel = state
 end)
 
