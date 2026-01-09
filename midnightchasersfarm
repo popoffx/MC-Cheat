@@ -1,309 +1,191 @@
--- // MIDNIGHT CHASERS - DEV EDITION (COORD COPIER) \\ --
+-- // MIDNIGHT CHASERS - CUSTOM 47.015s FARM \\ --
 
--- [0] SERVICES & VARIABLES
 local Players = game:GetService("Players")
-local RunService = game:GetService("RunService")
-local UserInputService = game:GetService("UserInputService")
-local Lighting = game:GetService("Lighting")
 local TweenService = game:GetService("TweenService")
+local RunService = game:GetService("RunService")
 local Workspace = game:GetService("Workspace")
+local CoreGui = game:GetService("CoreGui")
 local LocalPlayer = Players.LocalPlayer
 
--- Global State Variables
-getfenv().hyperRace = false
-getfenv().hyperDelivery = false
-getfenv().hitboxExpanded = false
-getfenv().driveSpeedLimit = 0
-getfenv().superAccel = false
+getfenv().customFarm = false
 
-local originalSizes = {}
+-- [1] THE COORDINATES (User Provided)
+local path = {
+    Vector3.new(3320.28, -16.33, 870.79),     -- 1
+    Vector3.new(3029.42, -16.35, 667.77),     -- 2
+    Vector3.new(2715.21, -16.01, 555.89),     -- 3
+    Vector3.new(2242.30, -1.57, 423.26),      -- 4
+    Vector3.new(1902.54, 14.42, 310.90),      -- 5
+    Vector3.new(1525.36, 19.51, 193.04),      -- 6
+    Vector3.new(1002.13, 19.54, 98.44),       -- 7
+    Vector3.new(653.18, 19.51, 102.55),       -- 8
+    Vector3.new(-69.27, 19.52, 100.05),       -- 9
+    Vector3.new(-596.05, 19.51, 92.65),       -- 10
+    Vector3.new(-1265.76, 14.42, 127.98),     -- 11
+    Vector3.new(-1905.40, -12.87, 266.95),    -- 12
+    Vector3.new(-2633.30, -7.91, 430.40),     -- 13
+    Vector3.new(-3214.74, 18.38, 549.30),     -- 14
+    Vector3.new(-3948.12, 22.40, 705.99),     -- 15
+    Vector3.new(-4655.67, 30.17, 849.40),     -- 16
+    Vector3.new(-5586.70, 17.73, 1049.28),    -- 17
+    Vector3.new(-6621.52, 8.71, 1268.59),     -- 18
+    Vector3.new(-7327.87, 8.72, 1418.71),     -- 19
+    Vector3.new(-7821.26, 8.74, 1592.98),     -- 20
+    Vector3.new(-8344.98, 7.47, 1814.60),     -- 21
+    Vector3.new(-8815.06, -10.67, 2014.91),   -- 22
+    Vector3.new(-9542.50, -74.26, 2320.46),   -- 23
+    Vector3.new(-10175.64, -113.70, 2587.48), -- 24
+    Vector3.new(-10951.42, -104.47, 2910.69), -- 25
+    Vector3.new(-11599.37, -51.18, 3195.86),  -- 26
+    Vector3.new(-12207.67, -16.61, 3462.69),  -- 27
+    Vector3.new(-12792.63, -2.27, 3768.82),   -- 28
+    Vector3.new(-13151.98, -1.95, 4087.11),   -- 29
+    Vector3.new(-13394.14, -1.93, 4370.46),   -- 30
+    Vector3.new(-13667.92, -4.21, 4767.96),   -- 31
+    Vector3.new(-14049.70, -14.63, 5313.34),  -- 32
+    Vector3.new(-14522.24, 2.77, 6016.46),    -- 33
+    Vector3.new(-14912.12, 5.76, 6627.29),    -- 34
+    Vector3.new(-15249.26, 5.75, 7333.03),    -- 35
+    Vector3.new(-15502.85, 2.17, 8063.98),    -- 36
+    Vector3.new(-15672.28, -9.53, 8713.38),   -- 37
+    Vector3.new(-15937.96, -21.61, 9530.70),  -- 38
+    Vector3.new(-16207.96, -2.23, 10414.69),  -- 39
+    Vector3.new(-16380.33, 7.36, 11258.34),   -- 40
+    Vector3.new(-16520.16, 9.95, 12119.32)    -- FINISH (41)
+}
 
--- [1] UTILITY FUNCTIONS
-local function clearTraffic(state)
-	local trafficFolder = Workspace:FindFirstChild("NPCVehicles") and Workspace.NPCVehicles:FindFirstChild("Vehicles")
-	if not trafficFolder then return end
-	if state then
-		if not getfenv().hiddenTraffic then
-			getfenv().hiddenTraffic = Instance.new("Folder", game.ReplicatedStorage)
-			getfenv().hiddenTraffic.Name = "HiddenNPCVehicles"
-		end
-		for _, v in pairs(trafficFolder:GetChildren()) do v.Parent = getfenv().hiddenTraffic end
-	else
-		if getfenv().hiddenTraffic then
-			for _, v in pairs(getfenv().hiddenTraffic:GetChildren()) do v.Parent = trafficFolder end
-			getfenv().hiddenTraffic:Destroy(); getfenv().hiddenTraffic = nil
-		end
+-- [2] MATH CONFIGURATION
+local targetTotalTime = 47.015
+local totalSegments = #path - 1
+local timePerSegment = targetTotalTime / totalSegments -- Approx 1.175s
+
+-- [3] HELPER FUNCTIONS
+local function ensureGroundPart()
+	if not _G.ooga or not _G.ooga.Parent then
+		local new = Instance.new("Part", Workspace)
+		new.Name = "FarmPlatform"
+		new.Anchored = true
+		new.Size = Vector3.new(50, 2, 50) -- Small platform following the car
+		new.Transparency = 1
+		new.CanCollide = true
+		_G.ooga = new
 	end
 end
 
-local function toggleHitboxExpander(state)
-	getfenv().hitboxExpanded = state
-	local function isCheckpoint(part)
-		if not part:IsA("BasePart") then return false end
-		if part.Name == "Checkpoint" or part.Name == "Ring" or tonumber(part.Name) ~= nil then
-			if part.Transparency > 0.1 or part.CanCollide == false then return true end
-		end
-		return false
-	end
-	if state then
-		for _, v in pairs(Workspace:GetDescendants()) do
-			if isCheckpoint(v) then
-				if not originalSizes[v] then originalSizes[v] = v.Size end
-				v.Size = Vector3.new(90, 90, 90)
-				v.Transparency = 0.8; v.Color = Color3.fromRGB(0, 255, 0); v.CanCollide = false
-			end
-		end
-	else
-		for part, size in pairs(originalSizes) do
-			if part and part.Parent then part.Size = size; part.Transparency = 1 end
-		end
-		table.clear(originalSizes)
-	end
-end
+local function tweenCar(car, targetPos, duration)
+    local root = car.PrimaryPart
+    if not root then return end
 
--- [FARM LOGIC]
-local function tpCar(cframe)
-    local char = LocalPlayer.Character
-    if char and char:FindFirstChild("Humanoid") and char.Humanoid.SeatPart then
-        local car = char.Humanoid.SeatPart.Parent
-        if car and car.PrimaryPart then
-            car:PivotTo(cframe)
-            car.PrimaryPart.AssemblyLinearVelocity = Vector3.zero
-            car.PrimaryPart.AssemblyAngularVelocity = Vector3.zero
+    -- Use a CFrameValue to tween the platform + car smoothly
+    local tValue = Instance.new("CFrameValue")
+    tValue.Value = root.CFrame
+    
+    local info = TweenInfo.new(duration, Enum.EasingStyle.Linear)
+    local goal = {Value = CFrame.new(targetPos)}
+    
+    local tween = TweenService:Create(tValue, info, goal)
+    
+    -- Sync Car to Value
+    local conn = tValue.Changed:Connect(function(val)
+        if not car.Parent then tValue:Destroy() return end
+        if _G.ooga then
+            _G.ooga.Position = val.Position - Vector3.new(0, 5, 0)
+            car:PivotTo(CFrame.new(val.Position, targetPos)) -- Look at target
+            
+            -- Zero out velocity so physics don't mess up the timing
+            root.AssemblyLinearVelocity = Vector3.zero
+            root.AssemblyAngularVelocity = Vector3.zero
         end
-    end
+    end)
+    
+    tween:Play()
+    tween.Completed:Wait()
+    conn:Disconnect()
+    tValue:Destroy()
 end
 
-local function runHyperRace()
-    while getfenv().hyperRace do
+local function runRace()
+    while getfenv().customFarm do
         local char = LocalPlayer.Character
-        if not char or not char.Humanoid.SeatPart then task.wait(1) continue end
-        local raceContainer = nil
-        for _, model in pairs(Workspace:GetDescendants()) do
-            if (model:IsA("Model") or model:IsA("Folder")) then
-                if model:FindFirstChild("1") and model:FindFirstChild("2") then
-                    raceContainer = model; break
-                end
-            end
+        if not char or not char.Humanoid.SeatPart then
+            game.StarterGui:SetCore("SendNotification", {Title = "Error"; Text = "Sit in a car!"; Duration = 3})
+            getfenv().customFarm = false
+            break
         end
-        if raceContainer then
-            local checkpoints = {}
-            for _, child in pairs(raceContainer:GetChildren()) do
-                local num = tonumber(child.Name)
-                if num then table.insert(checkpoints, {part = child, index = num}) end
+
+        local car = char.Humanoid.SeatPart.Parent
+        ensureGroundPart()
+
+        -- 1. START RACE
+        game.StarterGui:SetCore("SendNotification", {Title = "Started"; Text = "Running in 47.015s..."; Duration = 2})
+        
+        -- Loop through all checkpoints
+        for i = 1, totalSegments do
+            if not getfenv().customFarm then break end
+            
+            local target = path[i+1] -- Go to next point
+            tweenCar(car, target, timePerSegment)
+        end
+
+        -- 2. FINISHED
+        if getfenv().customFarm then
+            -- Wait a moment for the game to register the finish
+            task.wait(1.5)
+            
+            -- 3. TELEPORT BACK TO START (Point 1)
+            local startPoint = path[1]
+            if car and car.PrimaryPart then
+                car:PivotTo(CFrame.new(startPoint))
+                car.PrimaryPart.AssemblyLinearVelocity = Vector3.zero
             end
-            table.sort(checkpoints, function(a, b) return a.index < b.index end)
-            for _, pt in ipairs(checkpoints) do
-                if not getfenv().hyperRace then break end
-                tpCar(pt.part.CFrame); task.wait(0.15)
-            end
-            task.wait(1)
-            if checkpoints[1] and getfenv().hyperRace then
-                tpCar(checkpoints[1].part.CFrame); task.wait(1)
-            end
-        else
+            
+            -- Wait for race cooldown/restart
             task.wait(2)
         end
     end
 end
 
--- [PHYSICS]
-local function enableArcadePhysics(root, enable)
-    if enable then
-        if not root:FindFirstChild("ArcadeVelocity") then
-            local bv = Instance.new("BodyVelocity")
-            bv.Name = "ArcadeVelocity"; bv.MaxForce = Vector3.new(1e9, 0, 1e9); bv.P = 10000; bv.Parent = root
-        end
-        if not root:FindFirstChild("ArcadeGyro") then
-            local bg = Instance.new("BodyGyro")
-            bg.Name = "ArcadeGyro"; bg.MaxTorque = Vector3.new(1e9, 1e9, 1e9); bg.P = 5000; bg.D = 200; bg.Parent = root
-        end
+-- [4] UI SETUP
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "CustomRaceUI"
+if game.CoreGui:FindFirstChild("CustomRaceUI") then game.CoreGui.CustomRaceUI:Destroy() end
+ScreenGui.Parent = game.CoreGui
+
+local Frame = Instance.new("Frame", ScreenGui)
+Frame.Size = UDim2.fromOffset(200, 100)
+Frame.Position = UDim2.fromScale(0.1, 0.5)
+Frame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+Instance.new("UICorner", Frame)
+
+local Title = Instance.new("TextLabel", Frame)
+Title.Text = "47s FARM"
+Title.TextColor3 = Color3.fromRGB(0, 255, 100)
+Title.Font = Enum.Font.GothamBold
+Title.TextSize = 20
+Title.Size = UDim2.new(1, 0, 0, 40)
+Title.BackgroundTransparency = 1
+
+local Btn = Instance.new("TextButton", Frame)
+Btn.Size = UDim2.new(0.9, 0, 0, 40)
+Btn.Position = UDim2.new(0.05, 0, 0.5, 0)
+Btn.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+Btn.Text = "START LOOP"
+Btn.TextColor3 = Color3.white
+Btn.Font = Enum.Font.Gotham
+Instance.new("UICorner", Btn)
+
+local running = false
+Btn.MouseButton1Click:Connect(function()
+    running = not running
+    getfenv().customFarm = running
+    
+    if running then
+        Btn.Text = "STOP LOOP"
+        Btn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+        task.spawn(runRace)
     else
-        if root:FindFirstChild("ArcadeVelocity") then root.ArcadeVelocity:Destroy() end
-        if root:FindFirstChild("ArcadeGyro") then root.ArcadeGyro:Destroy() end
+        Btn.Text = "START LOOP"
+        Btn.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+        if _G.ooga then _G.ooga:Destroy(); _G.ooga = nil end
     end
-end
-
-RunService.Heartbeat:Connect(function()
-    local char = LocalPlayer.Character
-    if char and char:FindFirstChild("Humanoid") and char.Humanoid.SeatPart then
-        local car = char.Humanoid.SeatPart.Parent
-        local root = car.PrimaryPart
-        if not root then return end
-        
-        local active = getfenv().superAccel or (tonumber(getfenv().driveSpeedLimit) or 0) > 0
-        enableArcadePhysics(root, active)
-
-        if active then
-            local bv = root:FindFirstChild("ArcadeVelocity")
-            local bg = root:FindFirstChild("ArcadeGyro")
-            if bv and bg then
-                local rayOrigin = root.Position
-                local rayDir = Vector3.new(0, -15, 0)
-                local params = RaycastParams.new(); params.FilterDescendantsInstances = {car, char}
-                local hit = Workspace:Raycast(rayOrigin, rayDir, params)
-                local groundNormal = hit and hit.Normal or Vector3.new(0, 1, 0)
-                local currentLook = root.CFrame.LookVector
-                local newRight = currentLook:Cross(groundNormal).Unit
-                local newLook = groundNormal:Cross(newRight).Unit
-                
-                local steerAmt = 0
-                if UserInputService:IsKeyDown(Enum.KeyCode.A) then steerAmt = 0.05 end
-                if UserInputService:IsKeyDown(Enum.KeyCode.D) then steerAmt = -0.05 end
-                bg.CFrame = CFrame.lookAt(root.Position, root.Position + newLook) * CFrame.Angles(0, steerAmt, 0)
-
-                local targetSpeed = 0
-                local forceSpeed = tonumber(getfenv().driveSpeedLimit) or 0
-                if UserInputService:IsKeyDown(Enum.KeyCode.W) then
-                     if getfenv().superAccel then targetSpeed = root.AssemblyLinearVelocity.Magnitude + 10 else targetSpeed = forceSpeed end
-                elseif UserInputService:IsKeyDown(Enum.KeyCode.S) then targetSpeed = -50 end
-
-                bv.Velocity = root.CFrame.LookVector * targetSpeed
-                if not hit then bv.MaxForce = Vector3.new(1e9, 0, 1e9) 
-                else bv.MaxForce = Vector3.new(1e9, 1e9, 1e9); bv.Velocity = (newLook * targetSpeed) - Vector3.new(0, 5, 0) end
-            end
-        end
-    else
-        local car = Workspace:FindFirstChild("Vehicle") 
-        if car and car.PrimaryPart and car.PrimaryPart:FindFirstChild("ArcadeVelocity") then enableArcadePhysics(car.PrimaryPart, false) end
-    end
-end)
-
--- [UI LOAD]
-local library = (function()
-    local Library = {}
-    local UIConfig = {
-        MainColor = Color3.fromRGB(15, 15, 15), SecondaryColor = Color3.fromRGB(25, 25, 25),
-        AccentColor = Color3.fromRGB(255, 165, 0), -- Orange for Utility
-        TextColor = Color3.fromRGB(240, 240, 240), Font = Enum.Font.GothamBold, CornerRadius = UDim.new(0, 8)
-    }
-    function Library:CreateWindow(options)
-        local WindowName = options.text or "Script"
-        local ScreenGui = Instance.new("ScreenGui")
-        ScreenGui.Name = "MidnightChasersUI"
-        pcall(function() ScreenGui.Parent = game:GetService("CoreGui") end)
-        if not ScreenGui.Parent then ScreenGui.Parent = LocalPlayer:WaitForChild("PlayerGui") end
-        local MainFrame = Instance.new("Frame", ScreenGui)
-        MainFrame.Name = "MainFrame"; MainFrame.Size = UDim2.fromOffset(220, 360); MainFrame.Position = UDim2.fromScale(0.1, 0.1)
-        MainFrame.BackgroundColor3 = UIConfig.MainColor; MainFrame.BorderSizePixel = 0
-        Instance.new("UICorner", MainFrame).CornerRadius = UIConfig.CornerRadius
-        local Stroke = Instance.new("UIStroke", MainFrame); Stroke.Color = UIConfig.AccentColor; Stroke.Thickness = 1; Stroke.Transparency = 0.5
-        local TitleLabel = Instance.new("TextLabel", MainFrame); TitleLabel.Size = UDim2.new(1, -30, 0, 35); TitleLabel.Position = UDim2.new(0, 10, 0, 0)
-        TitleLabel.BackgroundTransparency = 1; TitleLabel.Text = WindowName; TitleLabel.TextColor3 = UIConfig.AccentColor
-        TitleLabel.TextSize = 16; TitleLabel.Font = UIConfig.Font; TitleLabel.TextXAlignment = Enum.TextXAlignment.Left
-        
-        local dragging, dragStart, startPos
-        MainFrame.InputBegan:Connect(function(input)
-            if input.UserInputType == Enum.UserInputType.MouseButton1 then dragging = true; dragStart = input.Position; startPos = MainFrame.Position end
-        end)
-        UserInputService.InputChanged:Connect(function(input)
-            if input.UserInputType == Enum.UserInputType.MouseMovement and dragging then
-                local delta = input.Position - dragStart
-                MainFrame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
-            end
-        end)
-        UserInputService.InputEnded:Connect(function(input) if input.UserInputType == Enum.UserInputType.MouseButton1 then dragging = false end end)
-
-        local Container = Instance.new("Frame", MainFrame); Container.Name = "Container"; Container.Size = UDim2.new(1, -20, 1, -40)
-        Container.Position = UDim2.new(0, 10, 0, 35); Container.BackgroundTransparency = 1; Container.ClipsDescendants = true
-        local UIList = Instance.new("UIListLayout", Container); UIList.Padding = UDim.new(0, 6); UIList.SortOrder = Enum.SortOrder.LayoutOrder
-        local function Resize() TweenService:Create(MainFrame, TweenInfo.new(0.3), {Size = UDim2.fromOffset(220, UIList.AbsoluteContentSize.Y + 50)}):Play() end
-        UIList:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(Resize)
-        local Elements = {}
-        function Elements:AddBox(text, callback)
-            local BoxFrame = Instance.new("Frame", Container); BoxFrame.Size = UDim2.new(1, 0, 0, 35); BoxFrame.BackgroundColor3 = UIConfig.SecondaryColor
-            Instance.new("UICorner", BoxFrame).CornerRadius = UDim.new(0, 6)
-            local TextBox = Instance.new("TextBox", BoxFrame); TextBox.Size = UDim2.new(1, 0, 1, 0); TextBox.BackgroundTransparency = 1
-            TextBox.PlaceholderText = text; TextBox.TextColor3 = UIConfig.TextColor; TextBox.Font = Enum.Font.GothamMedium; TextBox.TextSize = 14
-            TextBox.FocusLost:Connect(function() pcall(callback, TextBox, true) end); Resize()
-        end
-        function Elements:AddToggle(text, callback)
-            local isEnabled = false
-            local ToggleFrame = Instance.new("TextButton", Container); ToggleFrame.Text = ""; ToggleFrame.Size = UDim2.new(1, 0, 0, 30); ToggleFrame.BackgroundTransparency = 1
-            local Label = Instance.new("TextLabel", ToggleFrame); Label.Text = text; Label.Size = UDim2.new(0.7, 0, 1, 0); Label.BackgroundTransparency = 1
-            Label.TextColor3 = UIConfig.TextColor; Label.Font = Enum.Font.GothamMedium; Label.TextSize = 14; Label.TextXAlignment = Enum.TextXAlignment.Left
-            local SwitchBg = Instance.new("Frame", ToggleFrame); SwitchBg.Size = UDim2.new(0, 40, 0, 20); SwitchBg.Position = UDim2.new(1, -45, 0.5, 0); SwitchBg.AnchorPoint = Vector2.new(0, 0.5); SwitchBg.BackgroundColor3 = Color3.fromRGB(50,50,50)
-            Instance.new("UICorner", SwitchBg).CornerRadius = UDim.new(1, 0)
-            local Circle = Instance.new("Frame", SwitchBg); Circle.Size = UDim2.new(0, 16, 0, 16); Circle.Position = UDim2.new(0, 2, 0.5, 0); Circle.AnchorPoint = Vector2.new(0, 0.5); Circle.BackgroundColor3 = Color3.fromRGB(200,200,200)
-            Instance.new("UICorner", Circle).CornerRadius = UDim.new(1, 0)
-            ToggleFrame.MouseButton1Click:Connect(function()
-                isEnabled = not isEnabled; callback(isEnabled)
-                local tPos = isEnabled and UDim2.new(1, -18, 0.5, 0) or UDim2.new(0, 2, 0.5, 0)
-                local tCol = isEnabled and UIConfig.AccentColor or Color3.fromRGB(50,50,50)
-                TweenService:Create(Circle, TweenInfo.new(0.2), {Position = tPos}):Play(); TweenService:Create(SwitchBg, TweenInfo.new(0.2), {BackgroundColor3 = tCol}):Play()
-            end); Resize()
-        end
-        function Elements:AddButton(text, callback)
-            local Btn = Instance.new("TextButton", Container); Btn.Size = UDim2.new(1, 0, 0, 30); Btn.BackgroundColor3 = UIConfig.SecondaryColor
-            Btn.Text = text; Btn.TextColor3 = UIConfig.TextColor; Btn.Font = Enum.Font.GothamMedium; Btn.TextSize = 14
-            Instance.new("UICorner", Btn).CornerRadius = UDim.new(0, 6)
-            Btn.MouseButton1Click:Connect(function() 
-                TweenService:Create(Btn, TweenInfo.new(0.1), {BackgroundColor3 = UIConfig.AccentColor}):Play()
-                task.wait(0.1)
-                TweenService:Create(Btn, TweenInfo.new(0.3), {BackgroundColor3 = UIConfig.SecondaryColor}):Play()
-                callback() 
-            end); Resize()
-        end
-        Resize(); return Elements
-    end
-    return Library
-end)()
-
-local example = library:CreateWindow({ text = "MCCheat - DEV TOOLS" })
-
--- == DEVELOPER TOOLS ==
-example:AddButton("COPY COORDS (Clipboard)", function()
-    local char = LocalPlayer.Character
-    if char and char:FindFirstChild("HumanoidRootPart") then
-        local pos = char.HumanoidRootPart.Position
-        local str = string.format("Vector3.new(%.2f, %.2f, %.2f)", pos.X, pos.Y, pos.Z)
-        
-        -- Try to set clipboard (Synapse/Krnl/Fluxus/ScriptWare support this)
-        pcall(function()
-            setclipboard(str)
-        end)
-        
-        -- Also print to console (F9) just in case
-        print(">>> COORDS: " .. str)
-        game.StarterGui:SetCore("SendNotification", {Title = "COPIED!"; Text = str; Duration = 5})
-    else
-        game.StarterGui:SetCore("SendNotification", {Title = "Error"; Text = "Character not found"; Duration = 3})
-    end
-end)
-
--- == FARMING ==
-example:AddToggle("HYPER Race Farm (Loop)", function(state)
-    getfenv().hyperRace = state
-    if state then
-        toggleHitboxExpander(true)
-        task.spawn(runHyperRace)
-    else
-        toggleHitboxExpander(false)
-    end
-end)
-
--- == PHYSICS ==
-example:AddBox("Force Speed (e.g. 400)", function(object, focus)
-	if focus then getfenv().driveSpeedLimit = tonumber(object.Text) or 0 end
-end)
-example:AddToggle("Super Acceleration (Smooth)", function(state)
-    getfenv().superAccel = state
-end)
-
--- == UTILITY ==
-example:AddToggle("Disable NPC Traffic", function(state) clearTraffic(state) end)
-
-example:AddButton("STOP ALL / RESET", function()
-	getfenv().hyperRace = false
-	getfenv().driveSpeedLimit = 0
-	getfenv().superAccel = false
-    toggleHitboxExpander(false)
-	clearTraffic(false)
-	local char = LocalPlayer.Character
-    if char and char:FindFirstChild("Humanoid") and char.Humanoid.SeatPart then
-        local car = char.Humanoid.SeatPart.Parent
-        if car.PrimaryPart then enableArcadePhysics(car.PrimaryPart, false) end
-        car.PrimaryPart.AssemblyLinearVelocity = Vector3.new(0,0,0)
-    end
-	warn("RESET: All systems restored.")
 end)
