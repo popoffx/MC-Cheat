@@ -1,4 +1,4 @@
--- // MIDNIGHT CHASERS - HYPER FARM EDITION \\ --
+-- // MIDNIGHT CHASERS - DEV EDITION (COORD COPIER) \\ --
 
 -- [0] SERVICES & VARIABLES
 local Players = game:GetService("Players")
@@ -12,76 +12,34 @@ local LocalPlayer = Players.LocalPlayer
 -- Global State Variables
 getfenv().hyperRace = false
 getfenv().hyperDelivery = false
-getfenv().carFly = false
-getfenv().espEnabled = false
 getfenv().hitboxExpanded = false
-
--- Physics State
 getfenv().driveSpeedLimit = 0
 getfenv().superAccel = false
 
--- Storage
 local originalSizes = {}
 
 -- [1] UTILITY FUNCTIONS
-
--- Traffic Cleaner
 local function clearTraffic(state)
 	local trafficFolder = Workspace:FindFirstChild("NPCVehicles") and Workspace.NPCVehicles:FindFirstChild("Vehicles")
 	if not trafficFolder then return end
-
 	if state then
 		if not getfenv().hiddenTraffic then
 			getfenv().hiddenTraffic = Instance.new("Folder", game.ReplicatedStorage)
 			getfenv().hiddenTraffic.Name = "HiddenNPCVehicles"
 		end
-		for _, v in pairs(trafficFolder:GetChildren()) do
-			v.Parent = getfenv().hiddenTraffic
-		end
+		for _, v in pairs(trafficFolder:GetChildren()) do v.Parent = getfenv().hiddenTraffic end
 	else
 		if getfenv().hiddenTraffic then
-			for _, v in pairs(getfenv().hiddenTraffic:GetChildren()) do
-				v.Parent = trafficFolder
-			end
-			getfenv().hiddenTraffic:Destroy()
-			getfenv().hiddenTraffic = nil
+			for _, v in pairs(getfenv().hiddenTraffic:GetChildren()) do v.Parent = trafficFolder end
+			getfenv().hiddenTraffic:Destroy(); getfenv().hiddenTraffic = nil
 		end
 	end
 end
 
--- ESP
-local function toggleESP(state)
-	getfenv().espEnabled = state
-	local holder = game.CoreGui:FindFirstChild("ESPHolder") or Instance.new("Folder", game.CoreGui)
-	holder.Name = "ESPHolder"
-	
-	if not state then holder:Destroy() return end
-
-	task.spawn(function()
-		while getfenv().espEnabled do
-			for _, plr in pairs(Players:GetPlayers()) do
-				if plr ~= LocalPlayer and plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") then
-					if not holder:FindFirstChild(plr.Name) then
-						local hl = Instance.new("Highlight")
-						hl.Name = plr.Name; hl.Adornee = plr.Character
-						hl.FillColor = Color3.fromRGB(255, 0, 0)
-						hl.OutlineColor = Color3.fromRGB(255, 255, 255)
-						hl.FillTransparency = 0.5; hl.OutlineTransparency = 0
-						hl.Parent = holder
-					end
-				end
-			end
-			task.wait(1)
-		end
-	end)
-end
-
--- Hitbox Expander
 local function toggleHitboxExpander(state)
 	getfenv().hitboxExpanded = state
 	local function isCheckpoint(part)
 		if not part:IsA("BasePart") then return false end
-		-- Check numbers or names like "Ring"
 		if part.Name == "Checkpoint" or part.Name == "Ring" or tonumber(part.Name) ~= nil then
 			if part.Transparency > 0.1 or part.CanCollide == false then return true end
 		end
@@ -91,9 +49,8 @@ local function toggleHitboxExpander(state)
 		for _, v in pairs(Workspace:GetDescendants()) do
 			if isCheckpoint(v) then
 				if not originalSizes[v] then originalSizes[v] = v.Size end
-				v.Size = Vector3.new(90, 90, 90) -- Massive Hitbox
-				v.Transparency = 0.8; v.Color = Color3.fromRGB(0, 255, 0)
-				v.CanCollide = false
+				v.Size = Vector3.new(90, 90, 90)
+				v.Transparency = 0.8; v.Color = Color3.fromRGB(0, 255, 0); v.CanCollide = false
 			end
 		end
 	else
@@ -104,121 +61,53 @@ local function toggleHitboxExpander(state)
 	end
 end
 
--- [HYPER FARM LOGIC]
-
--- Helper: Instant Teleport
+-- [FARM LOGIC]
 local function tpCar(cframe)
     local char = LocalPlayer.Character
     if char and char:FindFirstChild("Humanoid") and char.Humanoid.SeatPart then
         local car = char.Humanoid.SeatPart.Parent
         if car and car.PrimaryPart then
             car:PivotTo(cframe)
-            car.PrimaryPart.AssemblyLinearVelocity = Vector3.new(0,0,0) -- Stop momentum
-            car.PrimaryPart.AssemblyAngularVelocity = Vector3.new(0,0,0)
+            car.PrimaryPart.AssemblyLinearVelocity = Vector3.zero
+            car.PrimaryPart.AssemblyAngularVelocity = Vector3.zero
         end
     end
 end
 
--- 1. HYPER RACE
 local function runHyperRace()
     while getfenv().hyperRace do
         local char = LocalPlayer.Character
         if not char or not char.Humanoid.SeatPart then task.wait(1) continue end
-        
-        -- Find active race
         local raceContainer = nil
-        -- Scan for a model that contains sequential numbers
         for _, model in pairs(Workspace:GetDescendants()) do
             if (model:IsA("Model") or model:IsA("Folder")) then
                 if model:FindFirstChild("1") and model:FindFirstChild("2") then
-                    raceContainer = model
-                    break
+                    raceContainer = model; break
                 end
             end
         end
-        
         if raceContainer then
-            -- Collect Checkpoints
             local checkpoints = {}
             for _, child in pairs(raceContainer:GetChildren()) do
                 local num = tonumber(child.Name)
                 if num then table.insert(checkpoints, {part = child, index = num}) end
             end
             table.sort(checkpoints, function(a, b) return a.index < b.index end)
-            
-            -- TELEPORT LOOP
             for _, pt in ipairs(checkpoints) do
                 if not getfenv().hyperRace then break end
-                -- Teleport directly to the part
-                tpCar(pt.part.CFrame)
-                task.wait(0.15) -- Tiny delay to register touch
+                tpCar(pt.part.CFrame); task.wait(0.15)
             end
-            
-            -- Wait for finish
             task.wait(1)
-            
-            -- Loop back to start
             if checkpoints[1] and getfenv().hyperRace then
-                tpCar(checkpoints[1].part.CFrame)
-                task.wait(1) -- Wait for countdown
+                tpCar(checkpoints[1].part.CFrame); task.wait(1)
             end
         else
-            -- No race found, wait
             task.wait(2)
         end
     end
 end
 
--- 2. HYPER DELIVERY
-local function runHyperDelivery()
-    while getfenv().hyperDelivery do
-        local char = LocalPlayer.Character
-        if not char or not char.Humanoid.SeatPart then task.wait(1) continue end
-        
-        -- Identify Pickup
-        local pickup = Workspace:FindFirstChild("GiftPickup") or Workspace:FindFirstChild("PickupLocation")
-        
-        -- If we can't find a named pickup, look for Highlights (usually indicates objective)
-        if not pickup then
-            for _, v in pairs(Workspace:GetDescendants()) do
-                if v:IsA("Highlight") and v.Adornee then
-                    -- Usually the highlight is on the dropoff or pickup
-                    -- We assume if we aren't holding an item, it's pickup time
-                    -- This part is tricky without exact game names, but we'll try to TP to all highlights
-                end
-            end
-        end
-        
-        -- Logic:
-        -- 1. Teleport to Pickup (Hardcoded common name or Highlight)
-        if pickup then
-            tpCar(pickup.WorldPivot)
-            task.wait(0.5) -- Wait to grab
-        end
-        
-        -- 2. Teleport to Dropoff
-        -- In most games, the Dropoff is highlighted yellow/green after pickup
-        local foundDropoff = false
-        for _, v in pairs(Workspace:GetDescendants()) do
-            if v:IsA("Highlight") and v.Parent then
-                tpCar(v.Parent.WorldPivot)
-                foundDropoff = true
-                task.wait(0.5) -- Wait to drop
-                break 
-            end
-        end
-        
-        if not foundDropoff and pickup then
-             -- If we found pickup but no dropoff highlight, maybe we just need to spam the pickup?
-             -- Some games are just "Go here, get money".
-             task.wait(1)
-        else
-            task.wait(1)
-        end
-    end
-end
-
--- [PHYSICS ENGINE (Arcade Handling)]
+-- [PHYSICS]
 local function enableArcadePhysics(root, enable)
     if enable then
         if not root:FindFirstChild("ArcadeVelocity") then
@@ -248,47 +137,35 @@ RunService.Heartbeat:Connect(function()
         if active then
             local bv = root:FindFirstChild("ArcadeVelocity")
             local bg = root:FindFirstChild("ArcadeGyro")
-            
             if bv and bg then
-                -- Magnet Logic
                 local rayOrigin = root.Position
                 local rayDir = Vector3.new(0, -15, 0)
                 local params = RaycastParams.new(); params.FilterDescendantsInstances = {car, char}
                 local hit = Workspace:Raycast(rayOrigin, rayDir, params)
                 local groundNormal = hit and hit.Normal or Vector3.new(0, 1, 0)
-                
                 local currentLook = root.CFrame.LookVector
                 local newRight = currentLook:Cross(groundNormal).Unit
                 local newLook = groundNormal:Cross(newRight).Unit
                 
-                -- Steering
                 local steerAmt = 0
                 if UserInputService:IsKeyDown(Enum.KeyCode.A) then steerAmt = 0.05 end
                 if UserInputService:IsKeyDown(Enum.KeyCode.D) then steerAmt = -0.05 end
                 bg.CFrame = CFrame.lookAt(root.Position, root.Position + newLook) * CFrame.Angles(0, steerAmt, 0)
 
-                -- Speed
                 local targetSpeed = 0
                 local forceSpeed = tonumber(getfenv().driveSpeedLimit) or 0
-                
                 if UserInputService:IsKeyDown(Enum.KeyCode.W) then
                      if getfenv().superAccel then targetSpeed = root.AssemblyLinearVelocity.Magnitude + 10 else targetSpeed = forceSpeed end
-                elseif UserInputService:IsKeyDown(Enum.KeyCode.S) then
-                     targetSpeed = -50
-                end
+                elseif UserInputService:IsKeyDown(Enum.KeyCode.S) then targetSpeed = -50 end
 
                 bv.Velocity = root.CFrame.LookVector * targetSpeed
-                
                 if not hit then bv.MaxForce = Vector3.new(1e9, 0, 1e9) 
                 else bv.MaxForce = Vector3.new(1e9, 1e9, 1e9); bv.Velocity = (newLook * targetSpeed) - Vector3.new(0, 5, 0) end
             end
         end
     else
-        -- Clean Exit
         local car = Workspace:FindFirstChild("Vehicle") 
-        if car and car.PrimaryPart and car.PrimaryPart:FindFirstChild("ArcadeVelocity") then
-            enableArcadePhysics(car.PrimaryPart, false)
-        end
+        if car and car.PrimaryPart and car.PrimaryPart:FindFirstChild("ArcadeVelocity") then enableArcadePhysics(car.PrimaryPart, false) end
     end
 end)
 
@@ -297,7 +174,7 @@ local library = (function()
     local Library = {}
     local UIConfig = {
         MainColor = Color3.fromRGB(15, 15, 15), SecondaryColor = Color3.fromRGB(25, 25, 25),
-        AccentColor = Color3.fromRGB(255, 50, 50), -- Red for Aggressive/Fast
+        AccentColor = Color3.fromRGB(255, 165, 0), -- Orange for Utility
         TextColor = Color3.fromRGB(240, 240, 240), Font = Enum.Font.GothamBold, CornerRadius = UDim.new(0, 8)
     }
     function Library:CreateWindow(options)
@@ -315,12 +192,9 @@ local library = (function()
         TitleLabel.BackgroundTransparency = 1; TitleLabel.Text = WindowName; TitleLabel.TextColor3 = UIConfig.AccentColor
         TitleLabel.TextSize = 16; TitleLabel.Font = UIConfig.Font; TitleLabel.TextXAlignment = Enum.TextXAlignment.Left
         
-        -- Dragging
         local dragging, dragStart, startPos
         MainFrame.InputBegan:Connect(function(input)
-            if input.UserInputType == Enum.UserInputType.MouseButton1 then
-                dragging = true; dragStart = input.Position; startPos = MainFrame.Position
-            end
+            if input.UserInputType == Enum.UserInputType.MouseButton1 then dragging = true; dragStart = input.Position; startPos = MainFrame.Position end
         end)
         UserInputService.InputChanged:Connect(function(input)
             if input.UserInputType == Enum.UserInputType.MouseMovement and dragging then
@@ -375,13 +249,32 @@ local library = (function()
     return Library
 end)()
 
-local example = library:CreateWindow({ text = "MCCheat - HYPER FARM" })
+local example = library:CreateWindow({ text = "MCCheat - DEV TOOLS" })
+
+-- == DEVELOPER TOOLS ==
+example:AddButton("COPY COORDS (Clipboard)", function()
+    local char = LocalPlayer.Character
+    if char and char:FindFirstChild("HumanoidRootPart") then
+        local pos = char.HumanoidRootPart.Position
+        local str = string.format("Vector3.new(%.2f, %.2f, %.2f)", pos.X, pos.Y, pos.Z)
+        
+        -- Try to set clipboard (Synapse/Krnl/Fluxus/ScriptWare support this)
+        pcall(function()
+            setclipboard(str)
+        end)
+        
+        -- Also print to console (F9) just in case
+        print(">>> COORDS: " .. str)
+        game.StarterGui:SetCore("SendNotification", {Title = "COPIED!"; Text = str; Duration = 5})
+    else
+        game.StarterGui:SetCore("SendNotification", {Title = "Error"; Text = "Character not found"; Duration = 3})
+    end
+end)
 
 -- == FARMING ==
 example:AddToggle("HYPER Race Farm (Loop)", function(state)
     getfenv().hyperRace = state
     if state then
-        -- Automatically expand hitboxes to ensure checkpoints register instantly
         toggleHitboxExpander(true)
         task.spawn(runHyperRace)
     else
@@ -389,50 +282,23 @@ example:AddToggle("HYPER Race Farm (Loop)", function(state)
     end
 end)
 
-example:AddToggle("HYPER Delivery Farm", function(state)
-    getfenv().hyperDelivery = state
-    if state then
-        task.spawn(runHyperDelivery)
-    end
-end)
-
 -- == PHYSICS ==
 example:AddBox("Force Speed (e.g. 400)", function(object, focus)
 	if focus then getfenv().driveSpeedLimit = tonumber(object.Text) or 0 end
 end)
-
 example:AddToggle("Super Acceleration (Smooth)", function(state)
     getfenv().superAccel = state
 end)
 
 -- == UTILITY ==
-example:AddToggle("Disable NPC Traffic", function(state)
-	clearTraffic(state)
-end)
-
-example:AddToggle("Full Bright", function(state)
-	getfenv().fullBright = state
-	if state then
-		task.spawn(function()
-			while getfenv().fullBright do
-				Lighting.Brightness = 2; Lighting.ClockTime = 14; Lighting.GlobalShadows = false
-				task.wait(1)
-			end
-		end)
-	else
-		Lighting.Brightness = 1; Lighting.GlobalShadows = true; Lighting.ClockTime = 0 
-	end
-end)
+example:AddToggle("Disable NPC Traffic", function(state) clearTraffic(state) end)
 
 example:AddButton("STOP ALL / RESET", function()
 	getfenv().hyperRace = false
-    getfenv().hyperDelivery = false
 	getfenv().driveSpeedLimit = 0
 	getfenv().superAccel = false
-	getfenv().hitboxExpanded = false
     toggleHitboxExpander(false)
 	clearTraffic(false)
-	
 	local char = LocalPlayer.Character
     if char and char:FindFirstChild("Humanoid") and char.Humanoid.SeatPart then
         local car = char.Humanoid.SeatPart.Parent
