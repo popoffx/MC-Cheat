@@ -1,4 +1,4 @@
--- // MIDNIGHT CHASERS FARM & UTILITY - ULTIMATE EDITION BY POPOFF (MODIFIED) \\ --
+-- // MIDNIGHT CHASERS FARM & UTILITY - ULTIMATE EDITION BY POPOFF (STABLE FIX) \\ --
 
 -- [0] VARIABLES & SERVICES
 local Players = game:GetService("Players")
@@ -253,30 +253,50 @@ UserInputService.InputBegan:Connect(function(input, gpe)
 	end
 end)
 
--- [NEW] SPEED & ACCELERATION LOGIC
-RunService.RenderStepped:Connect(function()
+-- [NEW] SPEED & ACCELERATION LOGIC (FIXED)
+RunService.Heartbeat:Connect(function()
     local char = LocalPlayer.Character
     if char and char:FindFirstChild("Humanoid") and char.Humanoid.SeatPart then
         local seat = char.Humanoid.SeatPart
         local car = seat.Parent
-        local root = car.PrimaryPart
+        local root = car.PrimaryPart or car:FindFirstChild("HumanoidRootPart")
         
-        -- 1. Super Acceleration
-        if getfenv().superAccel then
-            if seat:IsA("VehicleSeat") then
-                seat.Torque = 100000 -- Massive torque for instant 0-100
+        if not root then return end
+
+        -- Ground Check: Only apply speed mods if car is on the ground
+        -- This prevents the "Flying / Airplane" glitch
+        local rayOrigin = root.Position
+        local rayDirection = Vector3.new(0, -15, 0) -- Check 15 studs down
+        local raycastParams = RaycastParams.new()
+        raycastParams.FilterDescendantsInstances = {car, char}
+        raycastParams.FilterType = Enum.RaycastFilterType.Exclude
+        local rayResult = Workspace:Raycast(rayOrigin, rayDirection, raycastParams)
+        local isGrounded = (rayResult ~= nil)
+
+        -- 1. Super Acceleration (0-100 Boost)
+        -- Uses Velocity Injection instead of Torque for better compatibility
+        if getfenv().superAccel and UserInputService:IsKeyDown(Enum.KeyCode.W) and isGrounded then
+            local currentSpeed = root.AssemblyLinearVelocity.Magnitude
+            if currentSpeed < 150 then -- Only boost start speeds (0-150)
+                -- Add forward velocity relative to mass
+                root.AssemblyLinearVelocity = root.AssemblyLinearVelocity + (root.CFrame.LookVector * 5)
             end
         end
 
-        -- 2. Force Drive Speed
-        local forcedSpeed = tonumber(getfenv().driveSpeedLimit)
-        if forcedSpeed and forcedSpeed > 0 and root then
-            -- Only boost if holding W and speed is less than target
-            if UserInputService:IsKeyDown(Enum.KeyCode.W) then
-                if root.AssemblyLinearVelocity.Magnitude < forcedSpeed then
-                    -- Keep current direction, apply new speed
-                    root.AssemblyLinearVelocity = root.CFrame.LookVector * forcedSpeed
-                end
+        -- 2. Force Drive Speed (Smooth & Stuck to Road)
+        local targetSpeed = tonumber(getfenv().driveSpeedLimit)
+        if targetSpeed and targetSpeed > 0 and UserInputService:IsKeyDown(Enum.KeyCode.W) then
+            if isGrounded then
+                -- Get Flat Direction (Remove Up/Down pitch to prevent take-off)
+                local lookDir = root.CFrame.LookVector
+                local flatDir = Vector3.new(lookDir.X, 0, lookDir.Z).Unit
+                
+                -- Preserve Gravity (Y Velocity)
+                local currentVel = root.AssemblyLinearVelocity
+                local newVel = flatDir * targetSpeed
+                
+                -- Apply: Target X/Z Speed + Existing Gravity - Slight Downforce
+                root.AssemblyLinearVelocity = Vector3.new(newVel.X, currentVel.Y - 2, newVel.Z)
             end
         end
     end
