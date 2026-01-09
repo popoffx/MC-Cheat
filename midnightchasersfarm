@@ -1,101 +1,87 @@
--- // MIDNIGHT CHASERS - CUSTOM 47.015s FARM \\ --
+-- // MIDNIGHT CHASERS - 47s FIXED & DEBUGGED \\ --
 
 local Players = game:GetService("Players")
 local TweenService = game:GetService("TweenService")
 local RunService = game:GetService("RunService")
 local Workspace = game:GetService("Workspace")
-local CoreGui = game:GetService("CoreGui")
 local LocalPlayer = Players.LocalPlayer
 
-getfenv().customFarm = false
+_G.farmRunning = false
 
--- [1] THE COORDINATES (User Provided)
+-- [1] YOUR COORDINATES
 local path = {
-    Vector3.new(3320.28, -16.33, 870.79),     -- 1
-    Vector3.new(3029.42, -16.35, 667.77),     -- 2
-    Vector3.new(2715.21, -16.01, 555.89),     -- 3
-    Vector3.new(2242.30, -1.57, 423.26),      -- 4
-    Vector3.new(1902.54, 14.42, 310.90),      -- 5
-    Vector3.new(1525.36, 19.51, 193.04),      -- 6
-    Vector3.new(1002.13, 19.54, 98.44),       -- 7
-    Vector3.new(653.18, 19.51, 102.55),       -- 8
-    Vector3.new(-69.27, 19.52, 100.05),       -- 9
-    Vector3.new(-596.05, 19.51, 92.65),       -- 10
-    Vector3.new(-1265.76, 14.42, 127.98),     -- 11
-    Vector3.new(-1905.40, -12.87, 266.95),    -- 12
-    Vector3.new(-2633.30, -7.91, 430.40),     -- 13
-    Vector3.new(-3214.74, 18.38, 549.30),     -- 14
-    Vector3.new(-3948.12, 22.40, 705.99),     -- 15
-    Vector3.new(-4655.67, 30.17, 849.40),     -- 16
-    Vector3.new(-5586.70, 17.73, 1049.28),    -- 17
-    Vector3.new(-6621.52, 8.71, 1268.59),     -- 18
-    Vector3.new(-7327.87, 8.72, 1418.71),     -- 19
-    Vector3.new(-7821.26, 8.74, 1592.98),     -- 20
-    Vector3.new(-8344.98, 7.47, 1814.60),     -- 21
-    Vector3.new(-8815.06, -10.67, 2014.91),   -- 22
-    Vector3.new(-9542.50, -74.26, 2320.46),   -- 23
-    Vector3.new(-10175.64, -113.70, 2587.48), -- 24
-    Vector3.new(-10951.42, -104.47, 2910.69), -- 25
-    Vector3.new(-11599.37, -51.18, 3195.86),  -- 26
-    Vector3.new(-12207.67, -16.61, 3462.69),  -- 27
-    Vector3.new(-12792.63, -2.27, 3768.82),   -- 28
-    Vector3.new(-13151.98, -1.95, 4087.11),   -- 29
-    Vector3.new(-13394.14, -1.93, 4370.46),   -- 30
-    Vector3.new(-13667.92, -4.21, 4767.96),   -- 31
-    Vector3.new(-14049.70, -14.63, 5313.34),  -- 32
-    Vector3.new(-14522.24, 2.77, 6016.46),    -- 33
-    Vector3.new(-14912.12, 5.76, 6627.29),    -- 34
-    Vector3.new(-15249.26, 5.75, 7333.03),    -- 35
-    Vector3.new(-15502.85, 2.17, 8063.98),    -- 36
-    Vector3.new(-15672.28, -9.53, 8713.38),   -- 37
-    Vector3.new(-15937.96, -21.61, 9530.70),  -- 38
-    Vector3.new(-16207.96, -2.23, 10414.69),  -- 39
-    Vector3.new(-16380.33, 7.36, 11258.34),   -- 40
-    Vector3.new(-16520.16, 9.95, 12119.32)    -- FINISH (41)
+    Vector3.new(3320.28, -16.33, 870.79),
+    Vector3.new(3029.42, -16.35, 667.77),
+    Vector3.new(2715.21, -16.01, 555.89),
+    Vector3.new(2242.30, -1.57, 423.26),
+    Vector3.new(1902.54, 14.42, 310.90),
+    Vector3.new(1525.36, 19.51, 193.04),
+    Vector3.new(1002.13, 19.54, 98.44),
+    Vector3.new(653.18, 19.51, 102.55),
+    Vector3.new(-69.27, 19.52, 100.05),
+    Vector3.new(-596.05, 19.51, 92.65),
+    Vector3.new(-1265.76, 14.42, 127.98),
+    Vector3.new(-1905.40, -12.87, 266.95),
+    Vector3.new(-2633.30, -7.91, 430.40),
+    Vector3.new(-3214.74, 18.38, 549.30),
+    Vector3.new(-3948.12, 22.40, 705.99),
+    Vector3.new(-4655.67, 30.17, 849.40),
+    Vector3.new(-5586.70, 17.73, 1049.28),
+    Vector3.new(-6621.52, 8.71, 1268.59),
+    Vector3.new(-7327.87, 8.72, 1418.71),
+    Vector3.new(-7821.26, 8.74, 1592.98),
+    Vector3.new(-8344.98, 7.47, 1814.60),
+    Vector3.new(-8815.06, -10.67, 2014.91),
+    Vector3.new(-9542.50, -74.26, 2320.46),
+    Vector3.new(-10175.64, -113.70, 2587.48),
+    Vector3.new(-10951.42, -104.47, 2910.69),
+    Vector3.new(-11599.37, -51.18, 3195.86),
+    Vector3.new(-12207.67, -16.61, 3462.69),
+    Vector3.new(-12792.63, -2.27, 3768.82),
+    Vector3.new(-13151.98, -1.95, 4087.11),
+    Vector3.new(-13394.14, -1.93, 4370.46),
+    Vector3.new(-13667.92, -4.21, 4767.96),
+    Vector3.new(-14049.70, -14.63, 5313.34),
+    Vector3.new(-14522.24, 2.77, 6016.46),
+    Vector3.new(-14912.12, 5.76, 6627.29),
+    Vector3.new(-15249.26, 5.75, 7333.03),
+    Vector3.new(-15502.85, 2.17, 8063.98),
+    Vector3.new(-15672.28, -9.53, 8713.38),
+    Vector3.new(-15937.96, -21.61, 9530.70),
+    Vector3.new(-16207.96, -2.23, 10414.69),
+    Vector3.new(-16380.33, 7.36, 11258.34),
+    Vector3.new(-16520.16, 9.95, 12119.32)
 }
 
--- [2] MATH CONFIGURATION
+-- [2] MATH
 local targetTotalTime = 47.015
 local totalSegments = #path - 1
-local timePerSegment = targetTotalTime / totalSegments -- Approx 1.175s
+local timePerSegment = targetTotalTime / totalSegments
+warn("Calculated Time Per Segment: " .. timePerSegment)
 
--- [3] HELPER FUNCTIONS
-local function ensureGroundPart()
-	if not _G.ooga or not _G.ooga.Parent then
-		local new = Instance.new("Part", Workspace)
-		new.Name = "FarmPlatform"
-		new.Anchored = true
-		new.Size = Vector3.new(50, 2, 50) -- Small platform following the car
-		new.Transparency = 1
-		new.CanCollide = true
-		_G.ooga = new
-	end
-end
-
+-- [3] TWEEN LOGIC
 local function tweenCar(car, targetPos, duration)
     local root = car.PrimaryPart
     if not root then return end
+    
+    -- Anchor car to prevent physics interference
+    for _, part in pairs(car:GetDescendants()) do
+        if part:IsA("BasePart") then part.Anchored = true end
+    end
 
-    -- Use a CFrameValue to tween the platform + car smoothly
     local tValue = Instance.new("CFrameValue")
     tValue.Value = root.CFrame
     
     local info = TweenInfo.new(duration, Enum.EasingStyle.Linear)
-    local goal = {Value = CFrame.new(targetPos)}
+    -- Look at the target, but keep flat rotation
+    local lookCFrame = CFrame.lookAt(tValue.Value.Position, targetPos)
+    local goal = {Value = CFrame.new(targetPos) * lookCFrame.Rotation}
     
     local tween = TweenService:Create(tValue, info, goal)
     
-    -- Sync Car to Value
     local conn = tValue.Changed:Connect(function(val)
         if not car.Parent then tValue:Destroy() return end
-        if _G.ooga then
-            _G.ooga.Position = val.Position - Vector3.new(0, 5, 0)
-            car:PivotTo(CFrame.new(val.Position, targetPos)) -- Look at target
-            
-            -- Zero out velocity so physics don't mess up the timing
-            root.AssemblyLinearVelocity = Vector3.zero
-            root.AssemblyAngularVelocity = Vector3.zero
-        end
+        car:PivotTo(val)
     end)
     
     tween:Play()
@@ -105,50 +91,65 @@ local function tweenCar(car, targetPos, duration)
 end
 
 local function runRace()
-    while getfenv().customFarm do
+    while _G.farmRunning do
+        print("Loop tick...")
         local char = LocalPlayer.Character
-        if not char or not char.Humanoid.SeatPart then
-            game.StarterGui:SetCore("SendNotification", {Title = "Error"; Text = "Sit in a car!"; Duration = 3})
-            getfenv().customFarm = false
+        if not char then 
+            warn("No Character found!")
+            task.wait(1) 
+            continue 
+        end
+        
+        local hum = char:FindFirstChild("Humanoid")
+        if not hum or not hum.SeatPart then
+            warn("You are not in a car! Sit in a car first.")
+            game.StarterGui:SetCore("SendNotification", {Title = "Error"; Text = "SIT IN A CAR!"; Duration = 3})
+            _G.farmRunning = false
             break
         end
 
-        local car = char.Humanoid.SeatPart.Parent
-        ensureGroundPart()
+        local car = hum.SeatPart.Parent
+        print("Car detected: " .. car.Name)
 
         -- 1. START RACE
-        game.StarterGui:SetCore("SendNotification", {Title = "Started"; Text = "Running in 47.015s..."; Duration = 2})
+        print("Starting Path...")
         
-        -- Loop through all checkpoints
+        -- Start from Point 1 instantly
+        car:PivotTo(CFrame.new(path[1]))
+        
+        -- Loop through path
         for i = 1, totalSegments do
-            if not getfenv().customFarm then break end
-            
-            local target = path[i+1] -- Go to next point
-            tweenCar(car, target, timePerSegment)
+            if not _G.farmRunning then break end
+            local nextPoint = path[i+1]
+            -- Move car
+            tweenCar(car, nextPoint, timePerSegment)
         end
 
-        -- 2. FINISHED
-        if getfenv().customFarm then
-            -- Wait a moment for the game to register the finish
-            task.wait(1.5)
+        print("Race Finished. Waiting for reset...")
+        
+        -- 2. FINISHED WAIT
+        if _G.farmRunning then
+            task.wait(1.5) -- Wait for money UI
             
-            -- 3. TELEPORT BACK TO START (Point 1)
-            local startPoint = path[1]
-            if car and car.PrimaryPart then
-                car:PivotTo(CFrame.new(startPoint))
-                car.PrimaryPart.AssemblyLinearVelocity = Vector3.zero
+            -- Unanchor briefly to register game events if needed
+            for _, part in pairs(car:GetDescendants()) do
+                if part:IsA("BasePart") then part.Anchored = false end
             end
             
-            -- Wait for race cooldown/restart
-            task.wait(2)
+            -- Teleport to start
+            car:PivotTo(CFrame.new(path[1]))
+            car.PrimaryPart.AssemblyLinearVelocity = Vector3.zero
+            
+            task.wait(2) -- Wait for race restart
         end
     end
+    print("Loop Stopped.")
 end
 
 -- [4] UI SETUP
 local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "CustomRaceUI"
-if game.CoreGui:FindFirstChild("CustomRaceUI") then game.CoreGui.CustomRaceUI:Destroy() end
+ScreenGui.Name = "CustomRaceUI_Fixed"
+if game.CoreGui:FindFirstChild("CustomRaceUI_Fixed") then game.CoreGui.CustomRaceUI_Fixed:Destroy() end
 ScreenGui.Parent = game.CoreGui
 
 local Frame = Instance.new("Frame", ScreenGui)
@@ -158,8 +159,8 @@ Frame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
 Instance.new("UICorner", Frame)
 
 local Title = Instance.new("TextLabel", Frame)
-Title.Text = "47s FARM"
-Title.TextColor3 = Color3.fromRGB(0, 255, 100)
+Title.Text = "47s FIXED"
+Title.TextColor3 = Color3.fromRGB(255, 255, 0)
 Title.Font = Enum.Font.GothamBold
 Title.TextSize = 20
 Title.Size = UDim2.new(1, 0, 0, 40)
@@ -174,18 +175,24 @@ Btn.TextColor3 = Color3.white
 Btn.Font = Enum.Font.Gotham
 Instance.new("UICorner", Btn)
 
-local running = false
 Btn.MouseButton1Click:Connect(function()
-    running = not running
-    getfenv().customFarm = running
+    _G.farmRunning = not _G.farmRunning
     
-    if running then
+    if _G.farmRunning then
         Btn.Text = "STOP LOOP"
         Btn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
         task.spawn(runRace)
     else
         Btn.Text = "START LOOP"
         Btn.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
-        if _G.ooga then _G.ooga:Destroy(); _G.ooga = nil end
+        
+        -- Unanchor car on stop
+        local char = LocalPlayer.Character
+        if char and char:FindFirstChild("Humanoid") and char.Humanoid.SeatPart then
+            local car = char.Humanoid.SeatPart.Parent
+            for _, part in pairs(car:GetDescendants()) do
+                if part:IsA("BasePart") then part.Anchored = false end
+            end
+        end
     end
 end)
